@@ -35,6 +35,24 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.grey.shade200,
+        elevation: 0,
+        leading: GestureDetector(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return const LanguageDialogWidget();
+              },
+            );
+          },
+          child: const Padding(
+            padding: EdgeInsets.all(12.0),
+            child: Icon(Icons.language, color: kPrimaryColor, size: 30),
+          ),
+        ),
+      ),
       body: Stack(
         children: [
           // Background with two-tone color

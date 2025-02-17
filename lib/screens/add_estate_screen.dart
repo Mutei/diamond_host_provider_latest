@@ -189,14 +189,16 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   bool _areRequiredFieldsFilled() {
     return nameController.text.isNotEmpty &&
         enNameController.text.isNotEmpty &&
-        menuLinkController.text.isNotEmpty &&
+        // menuLinkController.text.isNotEmpty &&
         (countryValue != null && countryValue!.isNotEmpty) &&
         (stateValue != null && stateValue!.isNotEmpty) &&
         (cityValue != null && cityValue!.isNotEmpty) &&
-        selectedRestaurantTypes.isNotEmpty &&
-        selectedSessions.isNotEmpty &&
-        selectedEntries
-            .isNotEmpty && // Check if at least one restaurant type is selected
+        ((widget.userType == "3" && selectedRestaurantTypes.isNotEmpty) ||
+            widget.userType !=
+                "3") && // Ensure this condition applies only to restaurants
+        (widget.userType != "1"
+            ? selectedSessions.isNotEmpty && selectedEntries.isNotEmpty
+            : true) && // Ensure selectedSessions and selectedEntries are required only for userType != "1"
         ((widget.userType == "1" && hasSwimmingPool) ||
             (widget.userType == "2" || widget.userType == "3") &&
                 (facilityPdfUrl != null && facilityPdfUrl!.isNotEmpty) &&

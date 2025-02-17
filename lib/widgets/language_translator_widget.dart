@@ -35,14 +35,14 @@ class LanguageDialogWidget extends StatelessWidget {
         children: [
           ListTile(
             title: Text(
-              getTranslated(context, 'English'),
+              "English",
               style: kSecondaryStyle,
             ),
             onTap: () => _changeLanguage(context, "en", "SA"),
           ),
           ListTile(
             title: Text(
-              getTranslated(context, 'Arabic'),
+              "عربي",
               style: kSecondaryStyle,
             ),
             onTap: () => _changeLanguage(context, "ar", "SA"),

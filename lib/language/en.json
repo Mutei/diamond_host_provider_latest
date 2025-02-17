@@ -492,5 +492,6 @@
   "(Premium plus)":"Premium +",
   "At least one image is required.": "At least one image is required.",
   "Image removed successfully":"Image removed successfully",
-  "Estate's name in arabic is missing":"Estate's name in arabic is missing"
+  "Estate's name in arabic is missing":"Estate's name in arabic is missing",
+  "You must select at least one entry.": "You must select at least one entry."
 }

@@ -26,17 +26,16 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
     {'label': 'Familial', 'value': false},
     {'label': 'Single', 'value': false},
     {'label': 'mixed', 'value': false},
-    // Add more entries as needed
   ];
 
   List<Map<String, dynamic>> filteredOptions = [];
   TextEditingController searchController = TextEditingController();
   int displayedCount = 3; // Tracks the number of items to display
+  bool _isValid = true; // To track validation status
 
   @override
   void initState() {
     super.initState();
-    // Initialize selected entries based on initialSelectedEntries
     for (var option in entryOptions) {
       if (widget.initialSelectedEntries.contains(option['label'])) {
         option['value'] = true;
@@ -57,7 +56,6 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
       } else {
         filteredOptions = List.from(entryOptions);
       }
-      // Reset displayedCount when search text changes
       displayedCount = 3;
     });
   }
@@ -75,14 +73,19 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
     });
   }
 
+  bool _validateSelection() {
+    bool isAnySelected = entryOptions.any((option) => option['value'] == true);
+    setState(() {
+      _isValid = isAnySelected;
+    });
+    return isAnySelected;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!widget.isVisible) return Container();
 
-    // Determine if search is active
     bool isSearching = searchController.text.isNotEmpty;
-
-    // Determine the options to display
     List<Map<String, dynamic>> optionsToDisplay = isSearching
         ? filteredOptions
         : filteredOptions.take(displayedCount).toList();
@@ -91,27 +94,6 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextHeader("Entry allowed"),
-        const SizedBox(height: 10),
-        // TextField(
-        //   controller: searchController,
-        //   decoration: InputDecoration(
-        //     labelText: getTranslated(context, "Search for an entry"),
-        //     prefixIcon: const Icon(Icons.search),
-        //     suffixIcon: searchController.text.isNotEmpty
-        //         ? IconButton(
-        //             icon: const Icon(Icons.clear),
-        //             onPressed: _clearSearch,
-        //           )
-        //         : null,
-        //     border: OutlineInputBorder(
-        //       borderRadius: BorderRadius.circular(20),
-        //     ),
-        //     filled: true,
-        //     fillColor: Theme.of(context).brightness == Brightness.dark
-        //         ? Colors.black
-        //         : Colors.white,
-        //   ),
-        // ),
         const SizedBox(height: 10),
         Padding(
           padding: const EdgeInsets.all(16.0),
@@ -125,7 +107,14 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
                 .toList(),
           ),
         ),
-        // Show "Show more" button if not searching and more options are available
+        if (!_isValid)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Text(
+              getTranslated(context, "You must select at least one entry."),
+              style: TextStyle(color: Colors.red, fontSize: 14),
+            ),
+          ),
         if (!isSearching && displayedCount < filteredOptions.length)
           Align(
             alignment: Alignment.centerLeft,
@@ -161,6 +150,7 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
               optionSetState(label, newValue);
             });
             widget.onCheckboxChanged(newValue, label);
+            _validateSelection();
           },
         ),
       ],
@@ -195,5 +185,10 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
         ),
       ),
     );
+  }
+
+  // Public method to validate selection externally
+  bool validateSelection() {
+    return _validateSelection();
   }
 }

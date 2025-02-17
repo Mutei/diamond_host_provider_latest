@@ -493,6 +493,8 @@
   "(Premium plus)":"بريميوم +",
   "At least one image is required.": "مطلوب صورة واحدة على الأقل.",
   "Image removed successfully": "تمت إزالة الصورة بنجاح",
-  "Estate's name in arabic is missing": "اسم العقار باللغة العربية مفقود"
+  "Estate's name in arabic is missing": "اسم العقار باللغة العربية مفقود",
+  "You must select at least one entry.": "يجب عليك تحديد إدخال واحد على الأقل."
+
 
 }

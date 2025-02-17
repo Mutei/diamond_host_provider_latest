@@ -13,7 +13,8 @@ class TextFormFieldStyle extends StatefulWidget {
   final TextInputType textInputType;
   final FocusNode? focusNode;
   final bool showVisibilityToggle;
-  final String? Function(String?)? validator; // Optional validator function
+  final String? Function(String?)? validator;
+  final bool? readOnly; // Optional validator function
 
   TextFormFieldStyle({
     super.key,
@@ -23,6 +24,7 @@ class TextFormFieldStyle extends StatefulWidget {
     this.prefixIconWidget,
     required this.control,
     required this.isObsecured,
+    this.readOnly,
     required this.validate,
     required this.textInputType,
     this.focusNode,
@@ -42,9 +44,10 @@ class _TextFormFieldStyleState extends State<TextFormFieldStyle> {
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? kDarkModeColor
-            : Colors.white,
+        // color: Theme.of(context).brightness == Brightness.dark
+        //     ? kDarkModeColor
+        //     : Colors.white,
+        color: widget.readOnly == true ? Colors.grey.shade300 : Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black26,
@@ -61,6 +64,7 @@ class _TextFormFieldStyleState extends State<TextFormFieldStyle> {
         obscureText: widget.isObsecured,
         enabled: widget.validate,
         focusNode: widget.focusNode,
+        readOnly: widget.readOnly ?? false, // Set readOnly property
         textAlign: Directionality.of(context) == TextDirection.rtl
             ? TextAlign.right
             : TextAlign.left,
