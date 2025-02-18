@@ -31,7 +31,8 @@ class _EditSessionsTypeState extends State<EditSessionsType> {
 
   List<Map<String, dynamic>> filteredOptions = [];
   TextEditingController searchController = TextEditingController();
-  int displayedCount = 3; // Tracks the number of items to display
+  int displayedCount = 3;
+  bool _isValid = true; // Validation flag
 
   @override
   void initState() {
@@ -46,6 +47,14 @@ class _EditSessionsTypeState extends State<EditSessionsType> {
     searchController.addListener(_filterOptions);
   }
 
+  bool _validateSelection() {
+    bool isAnySelected = entryOptions.any((option) => option['value'] == true);
+    setState(() {
+      _isValid = isAnySelected;
+    });
+    return isAnySelected;
+  }
+
   void _filterOptions() {
     setState(() {
       String searchText = searchController.text.toLowerCase();
@@ -57,8 +66,7 @@ class _EditSessionsTypeState extends State<EditSessionsType> {
       } else {
         filteredOptions = List.from(entryOptions);
       }
-      // Reset displayedCount when search text changes
-      displayedCount = 3;
+      displayedCount = 3; // Reset the number of displayed entries on search
     });
   }
 
@@ -79,10 +87,7 @@ class _EditSessionsTypeState extends State<EditSessionsType> {
   Widget build(BuildContext context) {
     if (!widget.isVisible) return Container();
 
-    // Determine if search is active
     bool isSearching = searchController.text.isNotEmpty;
-
-    // Determine the options to display
     List<Map<String, dynamic>> optionsToDisplay = isSearching
         ? filteredOptions
         : filteredOptions.take(displayedCount).toList();
@@ -91,27 +96,6 @@ class _EditSessionsTypeState extends State<EditSessionsType> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextHeader("Sessions type"),
-        const SizedBox(height: 10),
-        // TextField(
-        //   controller: searchController,
-        //   decoration: InputDecoration(
-        //     labelText: getTranslated(context, "Search for an entry"),
-        //     prefixIcon: const Icon(Icons.search),
-        //     suffixIcon: searchController.text.isNotEmpty
-        //         ? IconButton(
-        //             icon: const Icon(Icons.clear),
-        //             onPressed: _clearSearch,
-        //           )
-        //         : null,
-        //     border: OutlineInputBorder(
-        //       borderRadius: BorderRadius.circular(20),
-        //     ),
-        //     filled: true,
-        //     fillColor: Theme.of(context).brightness == Brightness.dark
-        //         ? Colors.black
-        //         : Colors.white,
-        //   ),
-        // ),
         const SizedBox(height: 10),
         Padding(
           padding: const EdgeInsets.all(16.0),
@@ -125,14 +109,21 @@ class _EditSessionsTypeState extends State<EditSessionsType> {
                 .toList(),
           ),
         ),
-        // Show "Show more" button if not searching and more options are available
+        if (!_isValid)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Text(
+              getTranslated(context, "You must select at least one session"),
+              style: TextStyle(color: Colors.red, fontSize: 14),
+            ),
+          ),
         if (!isSearching && displayedCount < filteredOptions.length)
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(
               onPressed: _showMore,
               child: Text(
-                getTranslated(context, "Show more entry types"),
+                getTranslated(context, "Show more session types"),
                 style: TextStyle(color: kPurpleColor),
               ),
             ),
@@ -161,6 +152,7 @@ class _EditSessionsTypeState extends State<EditSessionsType> {
               optionSetState(label, newValue);
             });
             widget.onCheckboxChanged(newValue, label);
+            _validateSelection();
           },
         ),
       ],

@@ -29,16 +29,32 @@ class EstateCard extends StatelessWidget {
     final directory = await getTemporaryDirectory();
     final filePath = '${directory.path}/$estateId.jpg';
     final cachedImage = File(filePath);
+
+    // Clear the cache if you want to refresh the image
     if (await cachedImage.exists()) {
-      return cachedImage;
+      await cachedImage.delete(); // Delete the cached image
     }
 
-    final storageRef = FirebaseStorage.instance.ref().child('$estateId/0.jpg');
-    final imageUrl = await storageRef.getDownloadURL();
+    // Reference the folder for this estate
+    final storageRef = FirebaseStorage.instance.ref().child(estateId);
+
+    // List all files in the folder
+    final listResult = await storageRef.listAll();
+
+    // Check if there's at least one file
+    if (listResult.items.isEmpty) {
+      throw Exception("No image found for estate: $estateId");
+    }
+
+    // Get the first available image file
+    final firstImageRef = listResult.items.first;
+    final imageUrl = await firstImageRef.getDownloadURL();
     final response = await http.get(Uri.parse(imageUrl));
+
     if (response.statusCode == 200) {
       await cachedImage.writeAsBytes(response.bodyBytes);
     }
+
     return cachedImage;
   }
 

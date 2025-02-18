@@ -123,7 +123,7 @@ class _EditEstateState extends State<EditEstate> {
   List<String> selectedEntries = [];
   List<String> selectedEditSessionsType = [];
   List<String> selectedEditAdditionalsType = [];
-  List<String> selectedMusic = [];
+  List<String> lstMusicCoffee = [];
 
   // State Variables
   bool isMusicSelected = false;
@@ -178,7 +178,7 @@ class _EditEstateState extends State<EditEstate> {
     isMusicSelected = widget.objEstate["Music"] == "1";
     if (widget.objEstate.containsKey('Lstmusic')) {
       String entry = widget.objEstate['Lstmusic'];
-      selectedMusic = entry.split(',').map((e) => e.trim()).toList();
+      lstMusicCoffee = entry.split(',').map((e) => e.trim()).toList();
     }
     hasKidsArea = widget.objEstate["HasKidsArea"] == "1"; // Initialize
     hasSwimmingPoolSelected =
@@ -479,21 +479,6 @@ class _EditEstateState extends State<EditEstate> {
     );
   }
 
-  bool _areRequiredFieldsFilled() {
-    return arNameController.text.isNotEmpty &&
-        enNameController.text.isNotEmpty &&
-        menuLinkController.text.isNotEmpty &&
-        (countryValue != null && countryValue!.isNotEmpty) &&
-        (stateValue != null && stateValue!.isNotEmpty) &&
-        (cityValue != null && cityValue!.isNotEmpty) &&
-        selectedRestaurantTypes.isNotEmpty &&
-        selectedEditSessionsType.isNotEmpty &&
-        selectedEntries
-            .isNotEmpty && // Check if at least one restaurant type is selected
-        ((widget.estateType == "1" && hasSwimmingPoolSelected) ||
-            (widget.estateType == "2" || widget.estateType == "3"));
-  }
-
   Future<void> _deleteEstate(BuildContext context, String estateId) async {
     try {
       final dbRef = FirebaseDatabase.instance.ref();
@@ -571,6 +556,24 @@ class _EditEstateState extends State<EditEstate> {
     }
   }
 
+  bool validateSelection() {
+    // Check if any required selections are made for the specific estate type
+    if (widget.estateType == "3") {
+      // For restaurants, validate if restaurant types, entries, or sessions are selected
+      if (selectedRestaurantTypes.isEmpty ||
+          selectedEntries.isEmpty ||
+          selectedEditSessionsType.isEmpty) {
+        return false; // If no selection made, return false
+      }
+    } else {
+      // For other estate types, just check entries and sessions
+      if (selectedEntries.isEmpty || selectedEditSessionsType.isEmpty) {
+        return false; // If no selection made, return false
+      }
+    }
+    return true; // Return true if valid selections exist
+  }
+
   @override
   Widget build(BuildContext context) {
     // Determine estate type
@@ -600,7 +603,7 @@ class _EditEstateState extends State<EditEstate> {
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 children: [
                   SizedBox(height: 25),
-                  TextHeader(getTranslated(context, "Edit Estate Images")),
+                  TextHeader("Edit Estate Images"),
                   const SizedBox(height: 10),
                   // Button to Pick New Images
 
@@ -918,22 +921,24 @@ class _EditEstateState extends State<EditEstate> {
                     // For Type "2" (Coffee), allow additional music options
                     EditCoffeeMusicServices(
                       isVisible: true,
-                      initialSelectedEntries: selectedMusic.isNotEmpty
-                          ? ["Is there music", ...selectedMusic]
+                      initialSelectedEntries: isMusicSelected
+                          ? lstMusicCoffee.isNotEmpty
+                              ? ["Is there music", ...lstMusicCoffee]
+                              : []
                           : [],
                       onCheckboxChanged: (bool isChecked, String label) {
                         setState(() {
                           if (label == "Is there music") {
                             isMusicSelected = isChecked;
                             if (!isChecked) {
-                              selectedMusic
+                              lstMusicCoffee
                                   .clear(); // Clear music list if disabled
                             }
                           } else {
                             if (isChecked) {
-                              selectedMusic.add(label);
+                              lstMusicCoffee.add(label);
                             } else {
-                              selectedMusic.remove(label);
+                              lstMusicCoffee.remove(label);
                             }
                           }
                         });
@@ -1535,24 +1540,30 @@ class _EditEstateState extends State<EditEstate> {
                       ),
                     ),
                     onTap: () async {
+                      // First check if the entry validation is successful
+                      bool isEntryValid =
+                          validateSelection(); // Check if any entry is selected
+
+                      if (!isEntryValid) {
+                        // Show validation message for required selection
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return const FailureDialog(
+                              text: "Incomplete Entry",
+                              text1: "Select at least 1!",
+                            );
+                          },
+                        );
+                        return; // Prevent further action if validation fails
+                      }
+
                       // Determine the current estate type
-                      String estateType = widget.objEstate['Type'] ?? "1";
+                      String estateType =
+                          widget.objEstate['Type'] ?? "1"; // Default to "1"
 
                       // Step 1: Check if any estate fields were changed
                       bool changesMade = false;
-                      // if (!_areRequiredFieldsFilled()) {
-                      //   showDialog(
-                      //     context: context,
-                      //     builder: (BuildContext context) {
-                      //       return const FailureDialog(
-                      //         text: "Incomplete Information",
-                      //         text1:
-                      //             "Please fill out all required fields before proceeding.",
-                      //       );
-                      //     },
-                      //   );
-                      //   return; // Stop further execution if fields are incomplete
-                      // }
 
                       // Compare simple text and location fields
                       if (arNameController.text !=
@@ -1586,7 +1597,7 @@ class _EditEstateState extends State<EditEstate> {
                                   (widget.objEstate["additionals"] ?? '')) ||
                           ((isMusicSelected ? "1" : "0") !=
                               (widget.objEstate["Music"] ?? "0")) ||
-                          (selectedMusic.join(",") !=
+                          (lstMusicCoffee.join(",") !=
                               (widget.objEstate["Lstmusic"] ?? '')) ||
                           ((hasKidsArea ? "1" : "0") !=
                               (widget.objEstate["HasKidsArea"] ?? "0")) ||
@@ -1614,8 +1625,6 @@ class _EditEstateState extends State<EditEstate> {
                         changesMade =
                             true; // Mark as changes made if new images are added
                       }
-
-                      // Add additional comparisons for room details if needed
 
                       // Step 2: Show appropriate dialog based on changes
                       if (changesMade) {
@@ -1742,7 +1751,7 @@ class _EditEstateState extends State<EditEstate> {
       if (type == "2" || type == "3")
         if (type == "2" || type == "3")
           "additionals": selectedEditAdditionalsType.join(","),
-      if (type == "2") "Lstmusic": selectedMusic.join(","),
+      if (type == "2") "Lstmusic": lstMusicCoffee.join(","),
     });
 
     // Update Rooms information if necessary

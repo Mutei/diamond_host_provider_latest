@@ -494,7 +494,9 @@
   "At least one image is required.": "مطلوب صورة واحدة على الأقل.",
   "Image removed successfully": "تمت إزالة الصورة بنجاح",
   "Estate's name in arabic is missing": "اسم العقار باللغة العربية مفقود",
-  "You must select at least one entry.": "يجب عليك تحديد إدخال واحد على الأقل."
-
-
+  "You must select at least one entry.": "يجب عليك تحديد إدخال واحد على الأقل.",
+  "Incomplete Entry": "اختيار غير مكتمل",
+  "Select at least 1!": "يرجى التأكد من اختيار نوع مطعم واحد على الأقل، أو إدخال، أو جلسة للمضي قدمًا.",
+  "You must select at least one session": "يجب عليك اختيار جلسة واحدة على الأقل",
+  "You must select at least one restaurant type.": "يجب عليك اختيار نوع واحد على الأقل من المطاعم."
 }

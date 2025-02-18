@@ -111,7 +111,7 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Text(
-              getTranslated(context, "You must select at least one entry."),
+              getTranslated(context, "You must select at least one session"),
               style: TextStyle(color: Colors.red, fontSize: 14),
             ),
           ),

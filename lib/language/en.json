@@ -493,5 +493,9 @@
   "At least one image is required.": "At least one image is required.",
   "Image removed successfully":"Image removed successfully",
   "Estate's name in arabic is missing":"Estate's name in arabic is missing",
-  "You must select at least one entry.": "You must select at least one entry."
+  "You must select at least one entry.": "You must select at least one entry.",
+  "Incomplete Entry": "Incomplete Selection",
+  "Select at least 1!": "Please ensure that you select at least one restaurant type, entry, or session to proceed.",
+  "You must select at least one session":"You must select at least one session",
+  "You must select at least one restaurant type.":"You must select at least one restaurant type."
 }

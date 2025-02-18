@@ -1097,7 +1097,9 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                               roomAllowance: roomAllowance,
                               additionals: selectedAdditionals,
                               listMusic: listMusic,
-                              listEntry: selectedEntries,
+                              listEntry: widget.userType != "1"
+                                  ? selectedEntries
+                                  : listEntry,
                               price: singleController.text.isNotEmpty
                                   ? singleController.text
                                   : "150",

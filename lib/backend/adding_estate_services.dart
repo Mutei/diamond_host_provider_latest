@@ -222,12 +222,23 @@ class AddEstateServices {
     required String roomBioAr,
     required String roomBioEn,
   }) async {
+    // Reference to save the room data inside the App>Rooms path (external)
     DatabaseReference refRooms = FirebaseDatabase.instance
         .ref("App")
         .child("Rooms")
         .child(estateId)
         .child(roomName);
 
+    // Reference to save the room data inside the App>Estate>Hottel>EstateID>Rooms (internal)
+    DatabaseReference refHotelRooms = FirebaseDatabase.instance
+        .ref("App")
+        .child("Estate")
+        .child("Hottel")
+        .child(estateId)
+        .child("Rooms")
+        .child(roomName);
+
+    // Save the room data in both locations
     await refRooms.set({
       "ID": roomId,
       "Name": roomName,
@@ -235,7 +246,38 @@ class AddEstateServices {
       "BioAr": roomBioAr,
       "BioEn": roomBioEn,
     });
+
+    await refHotelRooms.set({
+      "ID": roomId,
+      "Name": roomName,
+      "Price": roomPrice,
+      "BioAr": roomBioAr,
+      "BioEn": roomBioEn,
+    });
   }
+
+  // Future<void> addRoom({
+  //   required String estateId,
+  //   required String roomId,
+  //   required String roomName,
+  //   required String roomPrice,
+  //   required String roomBioAr,
+  //   required String roomBioEn,
+  // }) async {
+  //   DatabaseReference refRooms = FirebaseDatabase.instance
+  //       .ref("App")
+  //       .child("Rooms")
+  //       .child(estateId)
+  //       .child(roomName);
+  //
+  //   await refRooms.set({
+  //     "ID": roomId,
+  //     "Name": roomName,
+  //     "Price": roomPrice,
+  //     "BioAr": roomBioAr,
+  //     "BioEn": roomBioEn,
+  //   });
+  // }
 
   Future<void> updateEstateId(int newIdEstate) async {
     await refID.update({"EstateID": newIdEstate});

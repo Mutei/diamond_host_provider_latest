@@ -224,6 +224,7 @@ class _EditRestaurantTypeVisibilityState
   List<Map<String, dynamic>> filteredOptions = [];
   TextEditingController searchController = TextEditingController();
   int displayedCount = 3; // Tracks the number of items to display
+  bool _isValid = true; // Validation flag
 
   @override
   void initState() {
@@ -268,14 +269,20 @@ class _EditRestaurantTypeVisibilityState
     });
   }
 
+  bool _validateSelection() {
+    bool isAnySelected =
+        restaurantOptions.any((option) => option['value'] == true);
+    setState(() {
+      _isValid = isAnySelected;
+    });
+    return isAnySelected;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!widget.isVisible) return Container();
 
-    // Determine if search is active
     bool isSearching = searchController.text.isNotEmpty;
-
-    // Determine the options to display
     List<Map<String, dynamic>> optionsToDisplay = isSearching
         ? filteredOptions
         : filteredOptions.take(displayedCount).toList();
@@ -334,6 +341,16 @@ class _EditRestaurantTypeVisibilityState
               ),
             ),
           ),
+        // Show validation message if no option is selected
+        if (!_isValid)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Text(
+              getTranslated(
+                  context, "You must select at least one restaurant type."),
+              style: TextStyle(color: Colors.red, fontSize: 14),
+            ),
+          ),
       ],
     );
   }
@@ -359,6 +376,7 @@ class _EditRestaurantTypeVisibilityState
               optionSetState(labelEn, newValue);
             });
             widget.onCheckboxChanged(newValue, labelEn);
+            _validateSelection();
           },
         ),
       ],
