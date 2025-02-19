@@ -480,7 +480,7 @@
   "You have not added any coffees yet": "لم تقم بإضافة أي مقاهي بعد",
   "My Coffees": "مقاهيّ",
   "No feedback available.": "لا توجد تقييمات متاحة.",
-  "Edit Estate Images": "تعديل صور العقار",
+  "Edit Estate Images": "تعديل صور المنشأة",
   "No images found.": "لم يتم العثور على صور.",
   "Add New Images": "إضافة صور جديدة",
   "Save Images": "حفظ الصور",
@@ -498,5 +498,7 @@
   "Incomplete Entry": "اختيار غير مكتمل",
   "Select at least 1!": "يرجى التأكد من اختيار نوع مطعم واحد على الأقل، أو إدخال، أو جلسة للمضي قدمًا.",
   "You must select at least one session": "يجب عليك اختيار جلسة واحدة على الأقل",
-  "You must select at least one restaurant type.": "يجب عليك اختيار نوع واحد على الأقل من المطاعم."
+  "You must select at least one restaurant type.": "يجب عليك اختيار نوع واحد على الأقل من المطاعم.",
+  "Failure": "فشل",
+  "Please add at least one image before saving.": "يرجى إضافة صورة واحدة على الأقل قبل الحفظ."
 }

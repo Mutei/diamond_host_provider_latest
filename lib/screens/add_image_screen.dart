@@ -12,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../backend/adding_estate_services.dart'; // Import the service
 import '../state_management/general_provider.dart';
+import '../utils/failure_dialogue.dart';
 import 'main_screen.dart';
 import 'main_screen_content.dart';
 
@@ -190,6 +191,20 @@ class _State extends State<AddImage> {
                   ),
                 ),
                 onTap: () async {
+                  if (image.isEmpty) {
+                    // Show failure dialog if no image is selected
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return const FailureDialog(
+                          text: "Failure",
+                          text1: "Please add at least one image before saving.",
+                        );
+                      },
+                    );
+                    return;
+                  }
+
                   // Mark the estate as completed first
                   await backendService.markEstateAsCompleted(
                       typeEstate, IDEstate);
