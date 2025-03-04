@@ -1,7 +1,6 @@
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:daimond_host_provider/constants/styles.dart';
-import 'package:daimond_host_provider/extension/sized_box_extension.dart';
 import 'package:daimond_host_provider/screens/qr_image_screen.dart';
 import 'package:daimond_host_provider/animations_widgets/build_shimmer_loader.dart';
 import 'package:flutter/material.dart';
@@ -12,8 +11,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../backend/booking_services.dart';
-import '../backend/estate_services.dart';
 import '../constants/coffee_music_options.dart';
 import '../constants/entry_options.dart';
 import '../constants/hotel_entry_options.dart';
@@ -22,8 +19,6 @@ import '../constants/sessions_options.dart';
 import '../localization/language_constants.dart';
 import '../backend/customer_rate_services.dart';
 import '../utils/rooms.dart';
-import '../utils/success_dialogue.dart';
-import '../utils/failure_dialogue.dart';
 import '../widgets/chip_widget.dart';
 import '../widgets/reused_elevated_button.dart';
 import 'edit_estate_screen.dart';
@@ -562,22 +557,27 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
             icon: const Icon(Icons.map_outlined, color: kDeepPurpleColor),
             onPressed: _launchMaps,
           ),
-          if (widget.estateType != "1")
-            IconButton(
-              icon: const Icon(Icons.edit, color: kDeepPurpleColor),
-              onPressed: () async {
-                await Navigator.of(context).push(MaterialPageRoute(
-                  builder: (context) => EditEstate(
-                    objEstate: estate,
-                    LstRooms: LstRooms,
-                    estateType: widget.estateType,
-                    estateId: widget.estateId,
-                  ),
-                ));
-                _fetchEstateData();
-                _fetchImageUrls();
-              },
-            ),
+          // if (widget.estateType != "1")
+          IconButton(
+            icon: const Icon(Icons.edit, color: kDeepPurpleColor),
+            onPressed: () async {
+              print("Navigating to EditEstate with the following details:");
+              print("Estate Object: $estate");
+              print("LstRooms: $LstRooms");
+              print("Estate Type: ${widget.estateType}");
+              print("Estate ID: ${widget.estateId}");
+              await Navigator.of(context).push(MaterialPageRoute(
+                builder: (context) => EditEstate(
+                  objEstate: estate,
+                  LstRooms: LstRooms,
+                  estateType: widget.estateType,
+                  estateId: widget.estateId,
+                ),
+              ));
+              _fetchEstateData();
+              _fetchImageUrls();
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.chat, color: kDeepPurpleColor),
             onPressed: () {
@@ -1296,41 +1296,43 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                               ),
                             ),
                       const SizedBox(height: 24),
-                      CustomButton(
-                        text: getTranslated(context, "View your Qr Code"),
-                        onPressed: () {
-                          if (isLoading) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(getTranslated(context,
-                                    'Data is still loading. Please try again shortly.')),
-                              ),
-                            );
-                          } else if (estate.isEmpty ||
-                              estate['IDUser'] == null ||
-                              estate['NameEn'] == null) {
-                            print('Estate Data: $estate');
-                            print('IDUser: ${estate['IDUser']}');
-                            print('NameEn: ${estate['NameEn']}');
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(getTranslated(context,
-                                    'Unable to load QR Code. Please ensure estate data is complete.')),
-                              ),
-                            );
-                          } else {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => QRImage(
-                                  userId: estate['IDUser'],
-                                  userName: estate['NameEn'],
-                                  estateId: widget.estateId,
+                      Center(
+                        child: CustomButton(
+                          text: getTranslated(context, "View your Qr Code"),
+                          onPressed: () {
+                            if (isLoading) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(getTranslated(context,
+                                      'Data is still loading. Please try again shortly.')),
                                 ),
-                              ),
-                            );
-                          }
-                        },
+                              );
+                            } else if (estate.isEmpty ||
+                                estate['IDUser'] == null ||
+                                estate['NameEn'] == null) {
+                              print('Estate Data: $estate');
+                              print('IDUser: ${estate['IDUser']}');
+                              print('NameEn: ${estate['NameEn']}');
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(getTranslated(context,
+                                      'Unable to load QR Code. Please ensure estate data is complete.')),
+                                ),
+                              );
+                            } else {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => QRImage(
+                                    userId: estate['IDUser'],
+                                    userName: estate['NameEn'],
+                                    estateId: widget.estateId,
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                        ),
                       ),
                       const SizedBox(height: 16),
                     ],

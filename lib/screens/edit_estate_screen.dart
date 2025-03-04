@@ -24,6 +24,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:csc_picker/csc_picker.dart';
@@ -40,6 +41,7 @@ import '../utils/rooms.dart';
 import '../utils/success_dialogue.dart';
 import '../widgets/birthday_textform_field.dart';
 import '../widgets/edit_entry_visibility.dart';
+import '../widgets/edit_location_widget.dart';
 import '../widgets/edit_restaurant_type_visibility.dart';
 import 'additional_facility_screen.dart';
 import 'main_screen_content.dart';
@@ -65,6 +67,7 @@ class EditEstate extends StatefulWidget {
 
 class _EditEstateState extends State<EditEstate> {
   final ImagePicker imgpicker = ImagePicker();
+  late LatLng _editedLocation;
   List<XFile>? imagefiles;
   List<XFile> newImageFiles = [];
   List<String> existingImageUrls = [];
@@ -140,6 +143,10 @@ class _EditEstateState extends State<EditEstate> {
   @override
   void initState() {
     super.initState();
+    double lat = double.tryParse(widget.objEstate["Lat"].toString()) ?? 37.7749;
+    double lon =
+        double.tryParse(widget.objEstate["Lon"].toString()) ?? -122.4194;
+    _editedLocation = LatLng(lat, lon);
     // Initialize controllers with existing data
     _fetchEstateImages();
     arNameController.text = widget.objEstate["NameAr"] ?? '';
@@ -796,7 +803,7 @@ class _EditEstateState extends State<EditEstate> {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: TextFormFieldStyle(
                       context: context,
-                      hint: getTranslated(context, "Bio"),
+                      hint: "Bio",
                       icon: Icon(
                         Icons.info,
                         color: kPurpleColor,
@@ -829,7 +836,7 @@ class _EditEstateState extends State<EditEstate> {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: TextFormFieldStyle(
                       context: context,
-                      hint: getTranslated(context, "Bio"),
+                      hint: "Bio",
                       icon: Icon(
                         Icons.info,
                         color: kPurpleColor,
@@ -857,6 +864,17 @@ class _EditEstateState extends State<EditEstate> {
                       textInputType: TextInputType.text,
                     ),
                   ),
+                  SizedBox(height: 20),
+                  TextHeader("Edit Estate Location"),
+                  EditLocationSection(
+                    initialLocation: _editedLocation,
+                    onLocationChanged: (newLocation) {
+                      setState(() {
+                        _editedLocation = newLocation;
+                      });
+                    },
+                  ),
+
                   40.kH,
                   TextHeader("Location information"),
                   const SizedBox(height: 20),
@@ -1578,7 +1596,13 @@ class _EditEstateState extends State<EditEstate> {
                               (widget.objEstate["MenuLink"] ?? '') ||
                           countryValue != (widget.objEstate["Country"] ?? '') ||
                           cityValue != (widget.objEstate["City"] ?? '') ||
-                          stateValue != (widget.objEstate["State"] ?? '')) {
+                          stateValue != (widget.objEstate["State"] ?? '') ||
+                          _editedLocation.latitude !=
+                              double.tryParse(
+                                  widget.objEstate["Lat"].toString()) ||
+                          _editedLocation.longitude !=
+                              double.tryParse(
+                                  widget.objEstate["Lon"].toString())) {
                         changesMade = true;
                       }
 
@@ -1744,6 +1768,8 @@ class _EditEstateState extends State<EditEstate> {
       if (type == "1") "HasSwimmingPool": hasSwimmingPoolSelected ? "1" : "0",
       // Save selected restaurant types
       if (type == "3") "TypeofRestaurant": selectedRestaurantTypes.join(","),
+      "Lat": _editedLocation.latitude,
+      "Lon": _editedLocation.longitude,
       // Save selected entries
       "Entry": selectedEntries.join(","),
       if (type == "2" || type == "3")

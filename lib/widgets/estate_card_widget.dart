@@ -7,6 +7,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:shimmer/shimmer.dart';
 import '../constants/styles.dart';
 
 class EstateCard extends StatelessWidget {
@@ -30,32 +31,52 @@ class EstateCard extends StatelessWidget {
     final filePath = '${directory.path}/$estateId.jpg';
     final cachedImage = File(filePath);
 
-    // Clear the cache if you want to refresh the image
-    if (await cachedImage.exists()) {
-      await cachedImage.delete(); // Delete the cached image
+    try {
+      // ✅ Check if the image exists in cache
+      if (await cachedImage.exists()) {
+        // ✅ Get last modified time of cached file
+        DateTime lastModified = await cachedImage.lastModified();
+
+        // ✅ Fetch the latest image metadata from Firebase Storage
+        final storageRef = FirebaseStorage.instance.ref().child(estateId);
+        final listResult = await storageRef.listAll();
+
+        if (listResult.items.isEmpty) {
+          throw Exception("No image found for estate: $estateId");
+        }
+
+        final firstImageRef = listResult.items.first;
+        final metadata = await firstImageRef.getMetadata();
+
+        // ✅ Compare timestamps: If local file is older than Firebase version, update it
+        if (metadata.updated != null &&
+            metadata.updated!.isAfter(lastModified)) {
+          await cachedImage.delete(); // Delete outdated image
+        } else {
+          return cachedImage; // ✅ Use existing cached image
+        }
+      }
+
+      // ✅ If no valid cache exists, download the image
+      final storageRef = FirebaseStorage.instance.ref().child(estateId);
+      final listResult = await storageRef.listAll();
+      if (listResult.items.isEmpty) {
+        throw Exception("No image found for estate: $estateId");
+      }
+
+      final firstImageRef = listResult.items.first;
+      final imageUrl = await firstImageRef.getDownloadURL();
+      final response = await http.get(Uri.parse(imageUrl));
+
+      if (response.statusCode == 200) {
+        await cachedImage.writeAsBytes(response.bodyBytes);
+        return cachedImage;
+      } else {
+        throw Exception("Failed to download image");
+      }
+    } catch (e) {
+      throw Exception("Error loading image: $e");
     }
-
-    // Reference the folder for this estate
-    final storageRef = FirebaseStorage.instance.ref().child(estateId);
-
-    // List all files in the folder
-    final listResult = await storageRef.listAll();
-
-    // Check if there's at least one file
-    if (listResult.items.isEmpty) {
-      throw Exception("No image found for estate: $estateId");
-    }
-
-    // Get the first available image file
-    final firstImageRef = listResult.items.first;
-    final imageUrl = await firstImageRef.getDownloadURL();
-    final response = await http.get(Uri.parse(imageUrl));
-
-    if (response.statusCode == 200) {
-      await cachedImage.writeAsBytes(response.bodyBytes);
-    }
-
-    return cachedImage;
   }
 
   @override
@@ -79,16 +100,19 @@ class EstateCard extends StatelessWidget {
               future: _getCachedImage(estateId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Container(
-                    height: 180,
-                    decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(15),
-                        topRight: Radius.circular(15),
+                  return Shimmer.fromColors(
+                    baseColor: Colors.grey[300]!,
+                    highlightColor: Colors.grey[100]!,
+                    child: Container(
+                      height: 180,
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(15),
+                          topRight: Radius.circular(15),
+                        ),
+                        color: Colors.grey[200], // Background color for shimmer
                       ),
-                      color: Colors.grey[200],
                     ),
-                    child: const Center(child: CircularProgressIndicator()),
                   );
                 } else if (snapshot.hasError || !snapshot.hasData) {
                   return Container(
@@ -121,6 +145,7 @@ class EstateCard extends StatelessWidget {
                 }
               },
             ),
+
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(

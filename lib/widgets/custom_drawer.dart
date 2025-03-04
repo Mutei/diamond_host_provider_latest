@@ -195,7 +195,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
             _buildShimmerOrItem(
               isLoading: canAdd == null,
               icon: Icons.notification_add,
-              text: getTranslated(context, "Notification"),
+              text: getTranslated(context, "Provider Notifications"),
               hint: getTranslated(context,
                   "You can see the notifications that come to you, such as booking confirmation"),
               onTap: () {
@@ -219,17 +219,17 @@ class _CustomDrawerState extends State<CustomDrawer> {
               },
             ),
 
-            _buildShimmerOrItem(
-              isLoading: canAdd == null,
-              icon: Icons.update,
-              text: getTranslated(context, "Upgrade account"),
-              hint: getTranslated(
-                  context, "From here you can upgrade account to Vip"),
-              onTap: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                    builder: (context) => UpgradeAccountScreen()));
-              },
-            ),
+            // _buildShimmerOrItem(
+            //   isLoading: canAdd == null,
+            //   icon: Icons.update,
+            //   text: getTranslated(context, "Upgrade account"),
+            //   hint: getTranslated(
+            //       context, "From here you can upgrade account to Vip"),
+            //   onTap: () {
+            //     Navigator.of(context).push(MaterialPageRoute(
+            //         builder: (context) => UpgradeAccountScreen()));
+            //   },
+            // ),
 
             _buildShimmerOrItem(
               isLoading: canAdd == null,

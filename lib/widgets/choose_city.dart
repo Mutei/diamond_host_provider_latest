@@ -8,38 +8,48 @@ class CustomCSCPicker extends StatefulWidget {
   final void Function(String?) onCityChanged;
 
   const CustomCSCPicker({
-    super.key,
+    Key? key,
     required this.onCountryChanged,
     required this.onStateChanged,
     required this.onCityChanged,
-  });
+  }) : super(key: key);
 
   @override
   State<CustomCSCPicker> createState() => _CustomCSCPickerState();
 }
 
-class _CustomCSCPickerState extends State<CustomCSCPicker> {
+class _CustomCSCPickerState extends State<CustomCSCPicker>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // Preserve state when scrolled off-screen
+
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Important when using AutomaticKeepAliveClientMixin
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       child: CSCPicker(
+        defaultCountry: CscCountry.Saudi_Arabia,
+
+        // Preselect Saudi Arabia
         showStates: true,
         showCities: true,
         flagState: CountryFlag.ENABLE,
         dropdownDecoration: BoxDecoration(
-            borderRadius: const BorderRadius.all(Radius.circular(10)),
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.black
-                : Colors.white,
-            border: Border.all(color: Colors.grey.shade300, width: 1)),
+          borderRadius: const BorderRadius.all(Radius.circular(10)),
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.black
+              : Colors.white,
+          border: Border.all(color: Colors.grey.shade300, width: 1),
+        ),
         disabledDropdownDecoration: BoxDecoration(
-            borderRadius: const BorderRadius.all(Radius.circular(10)),
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.black
-                : Colors.grey.shade300,
-            border: Border.all(color: Colors.grey.shade300, width: 1)),
+          borderRadius: const BorderRadius.all(Radius.circular(10)),
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.black
+              : Colors.grey.shade300,
+          border: Border.all(color: Colors.grey.shade300, width: 1),
+        ),
         countrySearchPlaceholder: getTranslated(context, "Country"),
         stateSearchPlaceholder: getTranslated(context, "State"),
         citySearchPlaceholder: getTranslated(context, "City"),

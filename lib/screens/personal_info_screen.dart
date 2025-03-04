@@ -22,7 +22,7 @@ class PersonalInfoScreen extends StatefulWidget {
   final String? firstName;
   final String? secondName;
   final String? lastName;
-  final String? dateOfBirth;
+  // final String? dateOfBirth;
   final String? city;
   final String? country;
   final String? state;
@@ -38,7 +38,7 @@ class PersonalInfoScreen extends StatefulWidget {
       this.firstName,
       this.secondName,
       this.lastName,
-      this.dateOfBirth,
+      // this.dateOfBirth,
       this.city,
       this.restorationId,
       this.country,
@@ -71,7 +71,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
     _firstNameController.text = widget.firstName ?? '';
     _secondNameController.text = widget.secondName ?? '';
     _lastNameController.text = widget.lastName ?? '';
-    _bodController.text = widget.dateOfBirth ?? '';
+    // _bodController.text = widget.dateOfBirth ?? '';
     cityValue = widget.city ?? '';
     countryValue = widget.country ?? '';
     stateValue = widget.state ?? '';
@@ -125,8 +125,8 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
           'SecondName': _secondNameController.text,
         if (_lastNameController.text != existingData['LastName'])
           'LastName': _lastNameController.text,
-        if (_bodController.text != existingData['DateOfBirth'])
-          'DateOfBirth': _bodController.text,
+        // if (_bodController.text != existingData['DateOfBirth'])
+        //   'DateOfBirth': _bodController.text,
         if (cityValue != existingData['City']) 'City': cityValue,
         if (stateValue != existingData['State']) 'State': stateValue,
         if (countryValue != existingData['Country']) 'Country': countryValue,
@@ -246,24 +246,25 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
                     labelText: getTranslated(context, 'Last Name')),
               ),
               const SizedBox(height: 10),
-              InkWell(
-                child: TextFormFieldStyle(
-                  context: context,
-                  hint: "Birthday",
-                  icon: Icon(
-                    Icons.calendar_month,
-                    color: kDeepPurpleColor,
-                  ),
-                  control: _bodController,
-                  isObsecured: false,
-                  validate: validateSpecialDate,
-                  textInputType: TextInputType.text,
-                ),
-                onTap: () {
-                  _restorableBODDatePickerRouteFuture.present();
-                },
-              ),
+              // InkWell(
+              //   child: TextFormFieldStyle(
+              //     context: context,
+              //     hint: "Birthday",
+              //     icon: Icon(
+              //       Icons.calendar_month,
+              //       color: kDeepPurpleColor,
+              //     ),
+              //     control: _bodController,
+              //     isObsecured: false,
+              //     validate: validateSpecialDate,
+              //     textInputType: TextInputType.text,
+              //   ),
+              //   onTap: () {
+              //     _restorableBODDatePickerRouteFuture.present();
+              //   },
+              // ),
               CustomCSCPicker(
+                key: const PageStorageKey('location_picker'),
                 onCountryChanged: (value) {
                   setState(() {
                     countryValue = value;

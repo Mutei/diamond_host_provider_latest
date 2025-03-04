@@ -54,8 +54,8 @@ class _MainScreenState extends State<MainScreen> {
             dataUser['SecondName'].toString().isEmpty;
         bool isLastNameMissing = dataUser['LastName'] == null ||
             dataUser['LastName'].toString().isEmpty;
-        bool isDateOfBirthMissing = dataUser['DateOfBirth'] == null ||
-            dataUser['DateOfBirth'].toString().isEmpty;
+        // bool isDateOfBirthMissing = dataUser['DateOfBirth'] == null ||
+        //     dataUser['DateOfBirth'].toString().isEmpty;
         bool isCityMissing =
             dataUser['City'] == null || dataUser['City'].toString().isEmpty;
         bool isCountryMissing = dataUser['Country'] == null ||
@@ -66,7 +66,7 @@ class _MainScreenState extends State<MainScreen> {
         if (isFirstNameMissing ||
             isSecondNameMissing ||
             isLastNameMissing ||
-            isDateOfBirthMissing ||
+            // isDateOfBirthMissing ||
             isCityMissing ||
             isStateMissing ||
             isCountryMissing) {
@@ -127,7 +127,7 @@ class _MainScreenState extends State<MainScreen> {
                         firstName: dataUser['FirstName'] ?? '',
                         secondName: dataUser['SecondName'] ?? '',
                         lastName: dataUser['LastName'] ?? '',
-                        dateOfBirth: dataUser['DateOfBirth'] ?? '',
+                        // dateOfBirth: dataUser['DateOfBirth'] ?? '',
                         city: dataUser['City'] ?? '',
                         country: dataUser['Country'] ?? '',
                         state: dataUser['State'] ?? ''),

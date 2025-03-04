@@ -4,6 +4,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
 
 class AddEstateServices {
   final ImagePicker imagePicker = ImagePicker();
@@ -146,7 +147,9 @@ class AddEstateServices {
     String? facilityImageUrl,
     String? taxImageUrl, // Consider renaming to facilityPdfUrl
     required bool hasJacuzzi,
+    required String estatePhoneNumber,
   }) async {
+    String registrationDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
     await ref.child(childType).child(idEstate).set({
       "NameAr": nameAr,
       "NameEn": nameEn,
@@ -154,6 +157,7 @@ class AddEstateServices {
       "BioAr": bioAr,
       "BioEn": bioEn,
       "Country": country,
+      "EstatePhoneNumber": estatePhoneNumber,
       "BreakfastLoungePrice": breakfastLoungePrice,
       "LaunchLoungePrice": launchLoungePrice,
       "DinnerLoungePrice": dinnerLoungePrice,
@@ -163,6 +167,7 @@ class AddEstateServices {
       "IDUser": userID,
       "IDEstate": idEstate,
       "TypeAccount": typeAccount,
+      "DateOfRegisteredEstate": registrationDate,
       // "TaxNumber": taxNumber, // Corrected typo from "TaxNumer"
       "Music": music,
       if (userType == "3") "TypeofRestaurant": listTypeOfRestaurant.join(","),

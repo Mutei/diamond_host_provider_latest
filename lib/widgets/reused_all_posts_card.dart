@@ -1,14 +1,16 @@
-import 'package:cached_network_image/cached_network_image.dart'; // Add this import
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
 import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:video_player/video_player.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 // Import your localization helper
 import 'package:daimond_host_provider/localization/language_constants.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 class ReusedAllPostsCards extends StatefulWidget {
   final Map post;
@@ -104,13 +106,23 @@ class _ReusedAllPostsCardsState extends State<ReusedAllPostsCards> {
     }
   }
 
+  /// Do not auto-play in init; let the VisibilityDetector handle playback.
   void _initializeVideoController(String videoUrl) {
-    _videoController = VideoPlayerController.network(videoUrl)
-      ..initialize().then((_) {
-        setState(() {});
-        _videoController?.setLooping(true);
-        _videoController?.play(); // Automatically play the video
-      });
+    DefaultCacheManager().getSingleFile(videoUrl).then((file) {
+      _videoController = VideoPlayerController.file(file)
+        ..initialize().then((_) {
+          setState(() {});
+          _videoController?.setLooping(true);
+        });
+    }).catchError((error) {
+      print("Error caching video: $error");
+      // Fallback to network video if cache fails
+      _videoController = VideoPlayerController.network(videoUrl)
+        ..initialize().then((_) {
+          setState(() {});
+          _videoController?.setLooping(true);
+        });
+    });
   }
 
   void _listenToLikes() {
@@ -516,8 +528,7 @@ class _ReusedAllPostsCardsState extends State<ReusedAllPostsCards> {
     );
   }
 
-  // Method to build the images and videos in the post
-
+  // Build images and videos in the post
   Widget _buildImageVideoContent() {
     List imageUrls = widget.post['ImageUrls'] ?? [];
     List videoUrls = widget.post['VideoUrls'] ?? [];
@@ -526,14 +537,16 @@ class _ReusedAllPostsCardsState extends State<ReusedAllPostsCards> {
       return const SizedBox.shrink();
     }
 
-    return SizedBox(
-      height: 300,
+    // Limit the feed preview height so it's not too tall
+    return Container(
+      color: Colors.black,
+      constraints: const BoxConstraints(maxHeight: 300),
       child: PageView.builder(
         controller: _pageController,
         itemCount: imageUrls.length + videoUrls.length,
         itemBuilder: (context, index) {
+          // Show images first
           if (index < imageUrls.length) {
-            // Use Shimmer for the loading effect instead of CircularProgressIndicator
             return CachedNetworkImage(
               imageUrl: imageUrls[index],
               fit: BoxFit.cover,
@@ -548,46 +561,117 @@ class _ReusedAllPostsCardsState extends State<ReusedAllPostsCards> {
               errorWidget: (context, url, error) => const Icon(Icons.error),
             );
           } else {
+            // Then show videos
             String videoUrl = videoUrls[index - imageUrls.length];
-            VideoPlayerController videoController =
-                VideoPlayerController.network(videoUrl);
-            return FutureBuilder(
-              future: videoController.initialize(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.done) {
-                  videoController.setLooping(true);
-                  videoController.play();
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        videoController.value.isPlaying
-                            ? videoController.pause()
-                            : videoController.play();
-                      });
-                    },
-                    child: AspectRatio(
-                      aspectRatio: videoController.value.aspectRatio,
-                      child: VideoPlayer(videoController),
-                    ),
-                  );
-                } else {
-                  // Show shimmer effect while video is loading
-                  return Center(
-                    child: Shimmer.fromColors(
-                      baseColor: Colors.grey,
-                      highlightColor: Colors.white,
-                      child: Container(
-                        color: Colors.grey,
-                        width: double.infinity,
-                        height: 300,
-                      ),
-                    ),
-                  );
+
+            return VisibilityDetector(
+              key: Key(
+                  'video-${widget.post['postId']}-${index - imageUrls.length}'),
+              onVisibilityChanged: (VisibilityInfo info) {
+                if (_videoController != null &&
+                    _videoController!.value.isInitialized) {
+                  if (info.visibleFraction > 0.5) {
+                    // Auto-play when more than 50% visible
+                    if (!_videoController!.value.isPlaying) {
+                      _videoController!.play();
+                      _videoController!.setVolume(1.0);
+                    }
+                  } else {
+                    // Pause when less than 50% visible
+                    if (_videoController!.value.isPlaying) {
+                      _videoController!.pause();
+                    }
+                  }
                 }
               },
+              child: _videoController == null
+                  ? const Center(child: CircularProgressIndicator())
+                  : Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                        AspectRatio(
+                          // Fallback to 16/9 if ratio is zero (not yet initialized)
+                          aspectRatio: _videoController!.value.aspectRatio > 0
+                              ? _videoController!.value.aspectRatio
+                              : 16 / 9,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _videoController!.value.isPlaying
+                                    ? _videoController?.pause()
+                                    : _videoController?.play();
+                              });
+                            },
+                            child: VideoPlayer(_videoController!),
+                          ),
+                        ),
+
+                        // Video Controls (Play/Pause, Mute, Fullscreen)
+                        Positioned(
+                          bottom: 10,
+                          right: 10,
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  _videoController!.value.isPlaying
+                                      ? Icons.pause
+                                      : Icons.play_arrow,
+                                  color: Colors.white,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _videoController!.value.isPlaying
+                                        ? _videoController?.pause()
+                                        : _videoController?.play();
+                                  });
+                                },
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  _videoController!.value.volume > 0
+                                      ? Icons.volume_up
+                                      : Icons.volume_off,
+                                  color: Colors.white,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _videoController!.setVolume(
+                                        _videoController!.value.volume > 0
+                                            ? 0
+                                            : 1);
+                                  });
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.fullscreen,
+                                  color: Colors.white,
+                                ),
+                                onPressed: () {
+                                  _enterFullScreen();
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
             );
           }
         },
+      ),
+    );
+  }
+
+  // Opens a fullscreen page with the same video controller
+  void _enterFullScreen() {
+    if (_videoController == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => FullScreenVideoPage(
+          videoController: _videoController!,
+        ),
       ),
     );
   }
@@ -723,7 +807,6 @@ class _ReusedAllPostsCardsState extends State<ReusedAllPostsCards> {
                       : Colors.grey,
                 ),
                 onPressed: () {
-                  // Implement like/unlike for comment
                   _handleLikeComment(widget.post['postId'], commentId);
                 },
               ),
@@ -807,12 +890,10 @@ class _ReusedAllPostsCardsState extends State<ReusedAllPostsCards> {
             padding: const EdgeInsets.only(left: 60.0),
             child: Column(
               children: [
-                // Display Replies
                 if (comment['replies'] != null && comment['replies'].isNotEmpty)
                   ...comment['replies']
                       .map<Widget>((reply) => _buildReplyItem(reply, commentId))
                       .toList(),
-                // Reply Input Field (Already displayed above, no need to duplicate)
               ],
             ),
           ),
@@ -843,7 +924,6 @@ class _ReusedAllPostsCardsState extends State<ReusedAllPostsCards> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Like Button for Reply
           IconButton(
             icon: Icon(
               reply['likes'] != null &&
@@ -860,7 +940,6 @@ class _ReusedAllPostsCardsState extends State<ReusedAllPostsCards> {
                   : Colors.grey,
             ),
             onPressed: () {
-              // Implement like/unlike for reply
               _handleLikeReply(widget.post['postId'], commentId, replyId);
             },
           ),
@@ -895,6 +974,153 @@ class _ReusedAllPostsCardsState extends State<ReusedAllPostsCards> {
             _buildActionButtons(),
             _buildCommentSection(),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class FullScreenVideoPage extends StatefulWidget {
+  final VideoPlayerController videoController;
+
+  const FullScreenVideoPage({
+    Key? key,
+    required this.videoController,
+  }) : super(key: key);
+
+  @override
+  State<FullScreenVideoPage> createState() => _FullScreenVideoPageState();
+}
+
+class _FullScreenVideoPageState extends State<FullScreenVideoPage> {
+  bool _showControls = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Optionally, force landscape orientation here if needed.
+  }
+
+  @override
+  void dispose() {
+    // Do not dispose the controller here; it is shared with the feed.
+    super.dispose();
+  }
+
+  void _toggleControls() {
+    setState(() {
+      _showControls = !_showControls;
+    });
+  }
+
+  // Skip 10 seconds backward.
+  void _rewindVideo() {
+    final currentPosition = widget.videoController.value.position;
+    final newPosition = currentPosition - const Duration(seconds: 10);
+    widget.videoController.seekTo(
+      newPosition > Duration.zero ? newPosition : Duration.zero,
+    );
+  }
+
+  // Skip 10 seconds forward.
+  void _forwardVideo() {
+    final currentPosition = widget.videoController.value.position;
+    final maxDuration = widget.videoController.value.duration;
+    final newPosition = currentPosition + const Duration(seconds: 10);
+    widget.videoController.seekTo(
+      newPosition < maxDuration ? newPosition : maxDuration,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      // Use SafeArea to avoid notches.
+      body: SafeArea(
+        child: GestureDetector(
+          onTap: _toggleControls,
+          child: Stack(
+            children: [
+              Center(
+                child: AspectRatio(
+                  aspectRatio: widget.videoController.value.aspectRatio > 0
+                      ? widget.videoController.value.aspectRatio
+                      : 16 / 9,
+                  child: VideoPlayer(widget.videoController),
+                ),
+              ),
+              // Central controls: rewind, play/pause, forward.
+              if (_showControls)
+                Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.replay_10,
+                            color: Colors.white, size: 36.0),
+                        onPressed: _rewindVideo,
+                      ),
+                      const SizedBox(width: 20),
+                      IconButton(
+                        icon: Icon(
+                          widget.videoController.value.isPlaying
+                              ? Icons.pause_circle_filled
+                              : Icons.play_circle_filled,
+                          color: Colors.white,
+                          size: 64.0,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            widget.videoController.value.isPlaying
+                                ? widget.videoController.pause()
+                                : widget.videoController.play();
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 20),
+                      IconButton(
+                        icon: const Icon(Icons.forward_10,
+                            color: Colors.white, size: 36.0),
+                        onPressed: _forwardVideo,
+                      ),
+                    ],
+                  ),
+                ),
+              // Additional controls: volume toggle and exit fullscreen.
+              if (_showControls)
+                Positioned(
+                  bottom: 10,
+                  right: 10,
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          widget.videoController.value.volume > 0
+                              ? Icons.volume_up
+                              : Icons.volume_off,
+                          color: Colors.white,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            widget.videoController.setVolume(
+                              widget.videoController.value.volume > 0 ? 0 : 1,
+                            );
+                          });
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.fullscreen_exit,
+                            color: Colors.white),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

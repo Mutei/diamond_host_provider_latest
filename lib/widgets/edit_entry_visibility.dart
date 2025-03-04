@@ -22,10 +22,11 @@ class EditEntryVisibility extends StatefulWidget {
 }
 
 class _EditEntryVisibilityState extends State<EditEntryVisibility> {
+  // Modified entryOptions with Arabic translations included.
   final List<Map<String, dynamic>> entryOptions = [
-    {'label': 'Familial', 'value': false},
-    {'label': 'Single', 'value': false},
-    {'label': 'mixed', 'value': false},
+    {'label': 'Single', 'labelAr': 'فردي', 'value': false},
+    {'label': 'Familial', 'labelAr': 'عائلي', 'value': false},
+    {'label': 'mixed', 'labelAr': 'مختلط', 'value': false},
   ];
 
   List<Map<String, dynamic>> filteredOptions = [];
@@ -36,6 +37,7 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
   @override
   void initState() {
     super.initState();
+    // Initialize the options with the initial selected entries.
     for (var option in entryOptions) {
       if (widget.initialSelectedEntries.contains(option['label'])) {
         option['value'] = true;
@@ -51,7 +53,8 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
       if (searchText.isNotEmpty) {
         filteredOptions = entryOptions.where((option) {
           String label = option['label'].toLowerCase();
-          return label.contains(searchText);
+          String labelAr = option['labelAr'].toLowerCase();
+          return label.contains(searchText) || labelAr.contains(searchText);
         }).toList();
       } else {
         filteredOptions = List.from(entryOptions);
@@ -93,17 +96,13 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextHeader("Entry allowed"),
+        _textHeader("Entry allowed"),
         const SizedBox(height: 10),
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: optionsToDisplay
-                .map((option) => _buildCheckboxRow(
-                      context,
-                      option['label'],
-                      option['value'],
-                    ))
+                .map((option) => _buildCheckboxRow(context, option))
                 .toList(),
           ),
         ),
@@ -112,7 +111,7 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Text(
               getTranslated(context, "You must select at least one session"),
-              style: TextStyle(color: Colors.red, fontSize: 14),
+              style: const TextStyle(color: Colors.red, fontSize: 14),
             ),
           ),
         if (!isSearching && displayedCount < filteredOptions.length)
@@ -122,7 +121,7 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
               onPressed: _showMore,
               child: Text(
                 getTranslated(context, "Show more entry types"),
-                style: TextStyle(color: kPurpleColor),
+                style: const TextStyle(color: kPurpleColor),
               ),
             ),
           ),
@@ -130,26 +129,25 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
     );
   }
 
-  Widget _buildCheckboxRow(BuildContext context, String label, bool value) {
-    String displayLabel = getTranslated(context, label) != null &&
-            getTranslated(context, label)!.isNotEmpty
-        ? getTranslated(context, label)!
-        : label;
+  Widget _buildCheckboxRow(BuildContext context, Map<String, dynamic> option) {
+    // Choose the appropriate label based on the locale.
+    String displayLabel = Localizations.localeOf(context).languageCode == 'ar'
+        ? (option['labelAr'] ?? option['label'])
+        : option['label'];
+
     return Row(
       children: [
-        Expanded(
-          child: Text(displayLabel),
-        ),
+        Expanded(child: Text(displayLabel)),
         Checkbox(
           checkColor: Colors.white,
           activeColor: kPurpleColor,
-          value: value,
+          value: option['value'],
           onChanged: (bool? newValue) {
             if (newValue == null) return;
             setState(() {
-              optionSetState(label, newValue);
+              _setOptionValue(option['label'], newValue);
             });
-            widget.onCheckboxChanged(newValue, label);
+            widget.onCheckboxChanged(newValue, option['label']);
             _validateSelection();
           },
         ),
@@ -157,7 +155,7 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
     );
   }
 
-  void optionSetState(String label, bool value) {
+  void _setOptionValue(String label, bool value) {
     for (var option in entryOptions) {
       if (option['label'] == label) {
         option['value'] = value;
@@ -173,8 +171,7 @@ class _EditEntryVisibilityState extends State<EditEntryVisibility> {
     super.dispose();
   }
 
-  // Helper method to display headers
-  Widget TextHeader(String text) {
+  Widget _textHeader(String text) {
     return Container(
       margin: const EdgeInsets.only(left: 20, right: 20, bottom: 10, top: 10),
       child: Text(
