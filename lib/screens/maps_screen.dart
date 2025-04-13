@@ -94,7 +94,7 @@ class _MapsScreenState extends State<MapsScreen> {
         CameraUpdate.newCameraPosition(
           CameraPosition(
             target: userCenter!,
-            zoom: 16.0,
+            zoom: 17.0,
           ),
         ),
       );
