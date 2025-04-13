@@ -174,6 +174,19 @@ class AuthenticationMethods {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _db = FirebaseDatabase.instance.ref();
 
+  // Helper to check if a phone number is blocked.
+  Future<bool> _isPhoneBlocked(String phoneNumber) async {
+    try {
+      // Assumes blocked numbers are stored as key-value pairs under "BlockedNumbers"
+      // Example: BlockedNumbers/{phoneNumber}: true
+      final snapshot = await _db.child('BlockedNumbers/$phoneNumber').once();
+      return snapshot.snapshot.exists && snapshot.snapshot.value == true;
+    } catch (e) {
+      print("Error checking phone block status: $e");
+      return false;
+    }
+  }
+
   Future<void> signUpWithEmailPhone({
     required String email,
     required String password,
@@ -194,18 +207,28 @@ class AuthenticationMethods {
       bool phoneExists = await _checkIfPhoneExists(phone);
 
       if (emailExists || phoneExists) {
-        // Show failure dialog if either email or phone exists
         showDialog(
           context: context,
           builder: (_) => const FailureDialog(
             text: 'Account already exists',
-            // text1: emailExists
-            //     ? 'This email is already registered.'
-            //     : 'This phone number is already registered.',
             text1: 'This email or phone number is already registered',
           ),
         );
-        return; // Stop further actions
+        return;
+      }
+
+      // Check if the phone number is blocked
+      bool isBlocked = await _isPhoneBlocked(phone);
+      if (isBlocked) {
+        showDialog(
+          context: context,
+          builder: (_) => const FailureDialog(
+            text:
+                "This phone number is temporarily blocked. Please try again later.",
+            text1: "",
+          ),
+        );
+        return;
       }
 
       // If validation passes, send OTP
@@ -273,20 +296,73 @@ class AuthenticationMethods {
   ) async {
     await _auth.verifyPhoneNumber(
       phoneNumber: phoneNumber,
+      // verificationCompleted: (PhoneAuthCredential credential) async {
+      //   await authenticateWithPhoneAndEmail(
+      //     email: email,
+      //     password: password,
+      //     phone: phoneNumber,
+      //     verificationId: '',
+      //     smsCode: '',
+      //     acceptedTerms: acceptedTerms,
+      //     agentCode: agentCode,
+      //     context: context,
+      //   );
+      // },
       verificationCompleted: (PhoneAuthCredential credential) async {
-        await authenticateWithPhoneAndEmail(
-          email: email,
-          password: password,
-          phone: phoneNumber,
-          verificationId: '',
-          smsCode: '',
-          acceptedTerms: acceptedTerms,
-          agentCode: agentCode,
-          context: context,
-        );
+        try {
+          // 1. Sign in with the auto-verified credential
+          UserCredential userCredential =
+              await _auth.signInWithCredential(credential);
+
+          // 2. Link the email credential
+          AuthCredential emailCredential = EmailAuthProvider.credential(
+            email: email,
+            password: password,
+          );
+          await userCredential.user!.linkWithCredential(emailCredential);
+
+          // 3. Save user data to Realtime Database
+          final userId = userCredential.user?.uid;
+          if (userId != null) {
+            await _saveUserData(
+              email: email,
+              password: password,
+              phone: phoneNumber,
+              userId: userId,
+              acceptedTerms: acceptedTerms,
+              agentCode: agentCode,
+            );
+          }
+
+          // 4. Navigate to the next screen (e.g., FillInfoScreen)
+          // Navigator.pushReplacement(
+          //   context,
+          //   MaterialPageRoute(builder: (context) => const FillInfoScreen()),
+          // );
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const FillInfoScreen()),
+            (Route<dynamic> route) => false,
+          );
+        } catch (e) {
+          print('Auto verification linking failed: $e');
+          // Optionally show an error dialog
+        }
       },
+
       verificationFailed: (FirebaseAuthException e) {
-        throw Exception('Phone verification failed: ${e.message}');
+        // Handle specific error codes such as "too-many-requests"
+        if (e.code == 'too-many-requests') {
+          showDialog(
+            context: context,
+            builder: (_) => const FailureDialog(
+              text:
+                  "Too many requests from this phone number. Please try again later.",
+              text1: "",
+            ),
+          );
+        } else {
+          throw Exception('Phone verification failed: ${e.message}');
+        }
       },
       codeSent: (String verificationId, int? resendToken) async {
         Navigator.push(

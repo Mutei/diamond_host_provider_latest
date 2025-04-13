@@ -228,11 +228,11 @@ class AddEstateServices {
     required String roomBioEn,
   }) async {
     // Reference to save the room data inside the App>Rooms path (external)
-    DatabaseReference refRooms = FirebaseDatabase.instance
-        .ref("App")
-        .child("Rooms")
-        .child(estateId)
-        .child(roomName);
+    // DatabaseReference refRooms = FirebaseDatabase.instance
+    //     .ref("App")
+    //     .child("Rooms")
+    //     .child(estateId)
+    //     .child(roomName);
 
     // Reference to save the room data inside the App>Estate>Hottel>EstateID>Rooms (internal)
     DatabaseReference refHotelRooms = FirebaseDatabase.instance
@@ -244,13 +244,13 @@ class AddEstateServices {
         .child(roomName);
 
     // Save the room data in both locations
-    await refRooms.set({
-      "ID": roomId,
-      "Name": roomName,
-      "Price": roomPrice,
-      "BioAr": roomBioAr,
-      "BioEn": roomBioEn,
-    });
+    // await refRooms.set({
+    //   "ID": roomId,
+    //   "Name": roomName,
+    //   "Price": roomPrice,
+    //   "BioAr": roomBioAr,
+    //   "BioEn": roomBioEn,
+    // });
 
     await refHotelRooms.set({
       "ID": roomId,

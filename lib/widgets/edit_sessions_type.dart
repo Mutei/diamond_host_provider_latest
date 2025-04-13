@@ -83,6 +83,21 @@ class _EditSessionsTypeState extends State<EditSessionsType> {
     });
   }
 
+  /// This helper method checks the current locale and remaps session labels if needed.
+  String _getSessionDisplayLabel(String label) {
+    bool isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    // For English, remap specific session strings
+    if (!isArabic) {
+      if (label == 'Internal sessions') {
+        return 'Indoor sessions';
+      } else if (label == 'External sessions') {
+        return 'Outdoor sessions';
+      }
+    }
+    // For Arabic (or if no remapping is needed), use your localization helper.
+    return getTranslated(context, label) ?? label;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!widget.isVisible) return Container();
@@ -114,7 +129,7 @@ class _EditSessionsTypeState extends State<EditSessionsType> {
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Text(
               getTranslated(context, "You must select at least one session"),
-              style: TextStyle(color: Colors.red, fontSize: 14),
+              style: const TextStyle(color: Colors.red, fontSize: 14),
             ),
           ),
         if (!isSearching && displayedCount < filteredOptions.length)
@@ -124,7 +139,7 @@ class _EditSessionsTypeState extends State<EditSessionsType> {
               onPressed: _showMore,
               child: Text(
                 getTranslated(context, "Show more session types"),
-                style: TextStyle(color: kPurpleColor),
+                style: const TextStyle(color: kPurpleColor),
               ),
             ),
           ),
@@ -133,10 +148,7 @@ class _EditSessionsTypeState extends State<EditSessionsType> {
   }
 
   Widget _buildCheckboxRow(BuildContext context, String label, bool value) {
-    String displayLabel = getTranslated(context, label) != null &&
-            getTranslated(context, label)!.isNotEmpty
-        ? getTranslated(context, label)!
-        : label;
+    String displayLabel = _getSessionDisplayLabel(label);
     return Row(
       children: [
         Expanded(

@@ -927,44 +927,29 @@ class _RequestScreenState extends State<RequestScreen>
     super.dispose();
   }
 
-  // Method to update booking with rating
-  Future<void> updateBookingWithRatingOnSave(
-      String bookingId, String userId) async {
-    double? userRating = await fetchAverageUserRating(userId);
+  // Future<void> updateBookingWithRatingOnSave(
+  //     String bookingId, String userId) async {
+  //   double? userRating = await fetchAverageUserRating(userId);
+  //   await FirebaseDatabase.instance
+  //       .ref("App/Booking/Book")
+  //       .child(bookingId)
+  //       .update({"Rating": userRating ?? 0.0});
+  // }
 
-    DatabaseReference bookingRef = FirebaseDatabase.instance
-        .ref("App")
-        .child("Booking")
-        .child("Book")
-        .child(bookingId);
-
-    await bookingRef.update({
-      "Rating": userRating ?? 0.0, // Default to 0.0 if no rating exists
-    });
-  }
-
-  // Method to fetch average user rating
   Future<double?> fetchAverageUserRating(String userId) async {
-    DatabaseReference ratingRef = FirebaseDatabase.instance
-        .ref("App/TotalProviderFeedbackToCustomer/$userId/AverageRating");
-
-    DataSnapshot snapshot = await ratingRef.get();
-    if (snapshot.exists) {
-      return double.tryParse(snapshot.value.toString());
-    } else {
-      return null; // Return null if no rating found
-    }
+    DataSnapshot snap = await FirebaseDatabase.instance
+        .ref("App/TotalProviderFeedbackToCustomer/$userId/AverageRating")
+        .get();
+    return snap.exists ? double.tryParse(snap.value.toString()) : null;
   }
 
-  // Method to show confirmation dialog
   Future<void> _showConfirmationDialog(
       BuildContext context, Map map, String actionType) async {
     String message = actionType == "accept"
         ? getTranslated(context, "Are you sure you want to accept the request?")
         : getTranslated(
             context, "Are you sure you want to reject the request?");
-    String statusUpdate =
-        actionType == "accept" ? "2" : "3"; // 2 for accept, 3 for reject
+    String statusUpdate = actionType == "accept" ? "2" : "3";
     String actionButtonText = actionType == "accept"
         ? getTranslated(context, "Confirm")
         : getTranslated(context, "Reject");
@@ -972,229 +957,250 @@ class _RequestScreenState extends State<RequestScreen>
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(getTranslated(context, "Confirmation")),
-          content: Text(message),
-          actions: <Widget>[
-            TextButton(
-              child: Text(getTranslated(context, "Cancel")),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: Text(actionButtonText),
-              onPressed: () async {
-                // Update booking status
-                DatabaseReference ref = FirebaseDatabase.instance
-                    .ref("App")
-                    .child("Booking")
-                    .child("Book")
-                    .child(map['IDBook']);
-                await ref.update({"Status": statusUpdate});
-
-                // Fetch customer FCM token
-                String customerId = map['IDUser'];
-                DatabaseReference customerTokenRef =
-                    FirebaseDatabase.instance.ref("App/User/$customerId/Token");
-                DataSnapshot tokenSnapshot = await customerTokenRef.get();
-                String? customerToken = tokenSnapshot.value?.toString();
-
-                // Optionally send notification
-                // if (customerToken != null && customerToken.isNotEmpty) {
-                //   await _firebaseServices.sendNotificationToCustomer(
-                //       customerToken,
-                //       "Booking Status Update",
-                //       statusUpdate == "2"
-                //           ? "Your booking (ID: ${map['IDBook']}) has been accepted."
-                //           : "Your booking has been rejected.");
-                // }
-
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
+      builder: (_) => AlertDialog(
+        title: Text(getTranslated(context, "Confirmation")),
+        content: Text(message),
+        actions: [
+          TextButton(
+            child: Text(getTranslated(context, "Cancel")),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          TextButton(
+            child: Text(actionButtonText),
+            onPressed: () async {
+              await FirebaseDatabase.instance
+                  .ref("App/Booking/Book")
+                  .child(map['IDBook'])
+                  .update({"Status": statusUpdate});
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+      ),
     );
   }
 
-  // Method to show detailed dialog with rooms and additional services
   Future<void> _showMyDialog(BuildContext context, Map map) async {
+    final bookingRef =
+        FirebaseDatabase.instance.ref("App/Booking/Book").child(map['IDBook']);
+
+    // 1) Fetch CountDays
+    final snap = await bookingRef.get();
+    final int countDays =
+        int.tryParse(snap.child('CountDays').value?.toString() ?? '') ?? 1;
+
+    // 2) Fetch Rooms and sum price * countDays
+    double roomsTotal = 0.0;
+    final roomsSnap = await bookingRef.child('Rooms').get();
+    if (roomsSnap.exists) {
+      for (final child in roomsSnap.children) {
+        final price =
+            double.tryParse(child.child('Price').value?.toString() ?? '') ??
+                0.0;
+        roomsTotal += price * countDays;
+      }
+    }
+
+    // 3) Fetch Additional services and sum price
+    double additionalTotal = 0.0;
+    final addSnap = await bookingRef.child('Additional').get();
+    if (addSnap.exists) {
+      for (final child in addSnap.children) {
+        final price =
+            double.tryParse(child.child('Price').value?.toString() ?? '') ??
+                0.0;
+        additionalTotal += price;
+      }
+    }
+
+    // 4) Compute grand total
+    final double computedTotal = roomsTotal + additionalTotal;
+
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        return Scaffold(
-          appBar: AppBar(
-            iconTheme: kIconTheme,
-            elevation: 0,
-            title: Text(
-              getTranslated(context, "Request"),
-              style: const TextStyle(fontSize: 15),
-            ),
+      builder: (_) => Scaffold(
+        appBar: AppBar(
+          iconTheme: kIconTheme,
+          elevation: 0,
+          title: Text(
+            getTranslated(context, "Request"),
+            style: const TextStyle(fontSize: 15),
           ),
-          body: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 20),
-                Container(
-                  width: MediaQuery.of(context).size.width,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: RichText(
-                    text: TextSpan(
-                      text: getTranslated(context, "Booking Details"),
-                      style: TextStyle(
-                        fontSize: 6.w,
-                        fontWeight: FontWeight.bold,
-                        color: kPurpleColor,
-                      ),
+        ),
+        body: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: RichText(
+                  text: TextSpan(
+                    text: getTranslated(context, "Booking Details"),
+                    style: TextStyle(
+                      fontSize: 6.w,
+                      fontWeight: FontWeight.bold,
+                      color: kPurpleColor,
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Text(
-                  getTranslated(context, "Rooms"),
-                  style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                ListRoom(map['IDBook']),
-                const SizedBox(height: 10),
-                Text(
-                  getTranslated(context, "Additional Services"),
-                  style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                ListAdd(map['IDBook']),
-                const SizedBox(height: 20),
-                Row(
+              ),
+              const SizedBox(height: 20),
+
+              // Count of Days
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Row(
                   children: [
-                    Expanded(
-                      child: TextButton(
-                        child: Text(
-                          getTranslated(context, 'Confirm'),
-                          style: const TextStyle(),
-                        ),
-                        onPressed: () async {
-                          Navigator.of(context).pop();
-                          await _showConfirmationDialog(context, map, "accept");
-                        },
-                      ),
+                    const Icon(Icons.calendar_today, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${getTranslated(context, "Number of Days")}: $countDays',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w500),
                     ),
-                    Expanded(
-                      child: TextButton(
-                        child: Text(
-                          getTranslated(context, 'Reject'),
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                        onPressed: () async {
-                          Navigator.of(context).pop();
-                          await _showConfirmationDialog(context, map, "reject");
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: TextButton(
-                        child: Text(
-                          getTranslated(context, 'Cancel'),
-                          style: const TextStyle(),
-                        ),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                    )
                   ],
-                )
-              ],
-            ),
+                ),
+              ),
+
+              // Computed Total Price
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.attach_money, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${getTranslated(context, "Total Price")}: ${computedTotal.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 10),
+              Text(
+                getTranslated(context, "Rooms"),
+                style:
+                    const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              ListRoom(map['IDBook']),
+              const SizedBox(height: 10),
+              Text(
+                getTranslated(context, "Additional Services"),
+                style:
+                    const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              ListAdd(map['IDBook']),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      child: Text(getTranslated(context, 'Confirm')),
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await _showConfirmationDialog(context, map, "accept");
+                      },
+                    ),
+                  ),
+                  Expanded(
+                    child: TextButton(
+                      child: Text(
+                        getTranslated(context, 'Reject'),
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await _showConfirmationDialog(context, map, "reject");
+                      },
+                    ),
+                  ),
+                  Expanded(
+                    child: TextButton(
+                      child: Text(getTranslated(context, 'Cancel')),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  // Method to show detailed dialog without rooms (Coffee)
   Future<void> _showMyDialogCoffe(BuildContext context, Map map) async {
     return showDialog<void>(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 20),
-                Container(
-                  width: MediaQuery.of(context).size.width,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: RichText(
-                    text: TextSpan(
-                      text: getTranslated(context, "Booking Details"),
-                      style: TextStyle(
-                        fontSize: 6.w,
-                        fontWeight: FontWeight.bold,
-                        color: kPurpleColor,
-                      ),
+      builder: (_) => AlertDialog(
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: RichText(
+                  text: TextSpan(
+                    text: getTranslated(context, "Booking Details"),
+                    style: TextStyle(
+                      fontSize: 6.w,
+                      fontWeight: FontWeight.bold,
+                      color: kPurpleColor,
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        child: Text(
-                          getTranslated(context, 'Confirm'),
-                          style: const TextStyle(),
-                        ),
-                        onPressed: () async {
-                          Navigator.of(context).pop();
-                          await _showConfirmationDialog(context, map, "accept");
-                        },
-                      ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      child: Text(getTranslated(context, 'Confirm')),
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await _showConfirmationDialog(context, map, "accept");
+                      },
                     ),
-                    Expanded(
-                      child: TextButton(
-                        child: Text(
-                          getTranslated(context, 'Reject'),
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                        onPressed: () async {
-                          Navigator.of(context).pop();
-                          await _showConfirmationDialog(context, map, "reject");
-                        },
+                  ),
+                  Expanded(
+                    child: TextButton(
+                      child: Text(
+                        getTranslated(context, 'Reject'),
+                        style: const TextStyle(color: Colors.red),
                       ),
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await _showConfirmationDialog(context, map, "reject");
+                      },
                     ),
-                    Expanded(
-                      child: TextButton(
-                        child: Text(
-                          getTranslated(context, 'Cancel'),
-                          style: const TextStyle(),
-                        ),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                    )
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                  Expanded(
+                    child: TextButton(
+                      child: Text(getTranslated(context, 'Cancel')),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final objProvider = Provider.of<GeneralProvider>(context);
-
+    Provider.of<GeneralProvider>(context, listen: false).resetNewRequestCount();
     return Scaffold(
       appBar: AppBar(
         title: Text(getTranslated(context, "Requests")),
@@ -1210,25 +1216,23 @@ class _RequestScreenState extends State<RequestScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Under Process Tab
           BookingList(
             status: "1",
             showDialogFunction: _showMyDialog,
             showDialogCoffeFunction: _showMyDialogCoffe,
           ),
-          // Accepted Tab
-          BookingList(
-            status: "2",
-          ),
-          // Rejected Tab
-          BookingList(
-            status: "3",
-          ),
+          BookingList(status: "2"),
+          BookingList(status: "3"),
         ],
       ),
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// (BookingList, ListRoom, ListAdd, ItemInCard remain unchanged)
+
+// ... BookingList, ListRoom, ListAdd, ItemInCard remain unchanged ...
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ──────────────────────────── BOOKING LIST WIDGET ───────────────────────────
@@ -1440,15 +1444,11 @@ class BookingList extends StatelessWidget {
                                     ),
                                   ),
                                   Expanded(
-                                    child: value["NetTotal"] != null &&
-                                            value["NetTotal"].toString() !=
-                                                "null"
-                                        ? ItemInCard(
-                                            const Icon(Icons.money),
-                                            value["NetTotal"].toString(),
-                                            getTranslated(context, "Total"),
-                                          )
-                                        : Container(),
+                                    child: ItemInCard(
+                                      const Icon(Icons.phone_android_outlined),
+                                      value['PhoneNumber'] ?? "",
+                                      getTranslated(context, "Phone Number"),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -1630,14 +1630,12 @@ class BookingItem extends StatelessWidget {
                         ),
                       ),
                       Expanded(
-                        child: map["NetTotal"].toString() != "null"
-                            ? ItemInCard(
-                                const Icon(Icons.money),
-                                map["NetTotal"].toString(),
-                                getTranslated(context, "Total"),
-                              )
-                            : Container(),
-                      )
+                        child: ItemInCard(
+                          const Icon(Icons.phone_android_outlined),
+                          map['PhoneNumber'] ?? "",
+                          getTranslated(context, "Phone Number"),
+                        ),
+                      ),
                     ],
                   ),
                   Row(
@@ -1708,7 +1706,7 @@ class BookingItem extends StatelessWidget {
 // ───────────────────────────── LIST ROOM WIDGET ─────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 class ListRoom extends StatelessWidget {
-  final String id;
+  final String id; // this is the bookingId
 
   ListRoom(this.id);
 
@@ -1717,38 +1715,26 @@ class ListRoom extends StatelessWidget {
     return FirebaseAnimatedList(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      defaultChild: const Center(
-        child: CircularProgressIndicator(),
-      ),
+      defaultChild: const Center(child: CircularProgressIndicator()),
+      // ← fixed path: now looks under Booking/Book/{bookingId}/Room
       query: FirebaseDatabase.instance
           .ref("App")
           .child("Booking")
-          .child("Room")
-          .child(id),
+          .child("Book")
+          .child(id)
+          .child("Rooms"),
       itemBuilder: (context, snapshot, animation, index) {
-        Map<dynamic, dynamic>? map;
-        try {
-          map = snapshot.value as Map<dynamic, dynamic>;
-          map['Key'] = snapshot.key;
-        } catch (e) {
-          print(e);
-        }
+        final map = (snapshot.value as Map<dynamic, dynamic>?) ?? {};
         return SizedBox(
           width: MediaQuery.of(context).size.width,
           height: 70,
           child: ListTile(
-            title: Text(getTranslated(context, map?['Name'] ?? "")),
-            leading: const Icon(
-              Icons.single_bed,
-              color: Color(0xFF84A5FA),
-            ),
+            leading: const Icon(Icons.single_bed, color: Color(0xFF84A5FA)),
+            title: Text(getTranslated(context, map['Name'] ?? "")),
             trailing: Text(
-              map?['Price'] ?? "",
+              map['Price']?.toString() ?? "",
               style: const TextStyle(color: Colors.green, fontSize: 18),
             ),
-            onTap: () async {
-              // Do something if needed
-            },
           ),
         );
       },
@@ -1760,7 +1746,7 @@ class ListRoom extends StatelessWidget {
 // ─────────────────────────── LIST ADDITIONAL WIDGET ─────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 class ListAdd extends StatelessWidget {
-  final String id;
+  final String id; // this is the bookingId
 
   ListAdd(this.id);
 
@@ -1769,34 +1755,27 @@ class ListAdd extends StatelessWidget {
     return FirebaseAnimatedList(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      defaultChild: const Center(
-        child: CircularProgressIndicator(),
-      ),
+      defaultChild: const Center(child: CircularProgressIndicator()),
+      // ← fixed path: now looks under Booking/Book/{bookingId}/Additional
       query: FirebaseDatabase.instance
           .ref("App")
           .child("Booking")
-          .child("Additional")
-          .child(id),
+          .child("Book")
+          .child(id)
+          .child("Additional"),
       itemBuilder: (context, snapshot, animation, index) {
-        Map<dynamic, dynamic>? map;
-        try {
-          map = snapshot.value as Map<dynamic, dynamic>;
-          map['Key'] = snapshot.key;
-        } catch (e) {
-          print(e);
-        }
+        final map = (snapshot.value as Map<dynamic, dynamic>?) ?? {};
+        final locale = Localizations.localeOf(context).languageCode;
+        final name = locale == 'ar' ? map['NameAr'] : map['NameEn'];
         return SizedBox(
           width: MediaQuery.of(context).size.width,
           height: 70,
           child: ListTile(
-            title: Text(map?['NameEn'] ?? ""),
+            title: Text(name ?? ""),
             trailing: Text(
-              map?['Price'] ?? "",
+              map['Price']?.toString() ?? "",
               style: const TextStyle(color: Colors.green, fontSize: 18),
             ),
-            onTap: () async {
-              // Do something if needed
-            },
           ),
         );
       },

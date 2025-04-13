@@ -11,9 +11,11 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_cached_pdfview/flutter_cached_pdfview.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sizer/sizer.dart';
 import '../localization/language_constants.dart';
+import '../utils/additional_facility.dart';
 import '../utils/failure_dialogue.dart';
 import '../utils/global_methods.dart';
 import '../utils/rooms.dart';
@@ -69,7 +71,10 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   bool checkIsThereBreakfastLounge = false;
   bool checkIsThereLaunchLounge = false;
   bool checkIsThereDinnerLounge = false;
-
+  TextEditingController facilityNameController = TextEditingController();
+  TextEditingController facilityNameArController = TextEditingController();
+  TextEditingController facilityPriceController = TextEditingController();
+  List<Additional> facilityList = [];
   TextEditingController enNameController = TextEditingController();
   TextEditingController enBioController = TextEditingController();
   TextEditingController taxNumberController = TextEditingController();
@@ -155,6 +160,38 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
     });
   }
 
+  Future<void> saveFacilities(String estateId) async {
+    for (var facility in facilityList) {
+      // Save under App > Fasilty > estateId > facilityId
+      // DatabaseReference refFacility = FirebaseDatabase.instance
+      //     .ref("App")
+      //     .child("Fasilty")
+      //     .child(estateId)
+      //     .child(facility.id);
+      // Save under App > Estate > Hottel > estateId > Fasilty > facilityId
+      DatabaseReference refEstateFacility = FirebaseDatabase.instance
+          .ref("App")
+          .child("Estate")
+          .child("Hottel")
+          .child(estateId)
+          .child("Fasilty")
+          .child(facility.id);
+
+      // await refFacility.set({
+      //   "ID": facility.id,
+      //   "Name": facility.name,
+      //   "NameEn": facility.nameEn,
+      //   "Price": facility.price,
+      // });
+      await refEstateFacility.set({
+        "ID": facility.id,
+        "Name": facility.name,
+        "NameEn": facility.nameEn,
+        "Price": facility.price,
+      });
+    }
+  }
+
   void _onAdditionalCheckboxChanged(bool value, String type) {
     setState(() {
       if (value) {
@@ -191,23 +228,40 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
     });
   }
 
+  // bool _areRequiredFieldsFilled() {
+  //   return nameController.text.isNotEmpty &&
+  //       enNameController.text.isNotEmpty &&
+  //       // menuLinkController.text.isNotEmpty &&
+  //       (countryValue != null && countryValue!.isNotEmpty) &&
+  //       (stateValue != null && stateValue!.isNotEmpty) &&
+  //       (cityValue != null && cityValue!.isNotEmpty);
+  //
+  //   // ((widget.userType == "3" && selectedRestaurantTypes.isNotEmpty) ||
+  //   //     widget.userType !=
+  //   //         "3") && // Ensure this condition applies only to restaurants
+  //   // (widget.userType != "1"
+  //   //     ? selectedSessions.isNotEmpty && selectedEntries.isNotEmpty
+  //   //     : true) && // Ensure selectedSessions and selectedEntries are required only for userType != "1"
+  //   // ((widget.userType == "1" && hasSwimmingPool) ||
+  //   //     (widget.userType == "2" || widget.userType == "3"));
+  //   // (facilityPdfUrl != null && facilityPdfUrl!.isNotEmpty) &&
+  //   // (taxPdfUrl != null && taxPdfUrl!.isNotEmpty));
+  // }
   bool _areRequiredFieldsFilled() {
-    return nameController.text.isNotEmpty &&
+    bool basicFieldsFilled = nameController.text.isNotEmpty &&
         enNameController.text.isNotEmpty &&
-        // menuLinkController.text.isNotEmpty &&
         (countryValue != null && countryValue!.isNotEmpty) &&
         (stateValue != null && stateValue!.isNotEmpty) &&
         (cityValue != null && cityValue!.isNotEmpty);
-    // ((widget.userType == "3" && selectedRestaurantTypes.isNotEmpty) ||
-    //     widget.userType !=
-    //         "3") && // Ensure this condition applies only to restaurants
-    // (widget.userType != "1"
-    //     ? selectedSessions.isNotEmpty && selectedEntries.isNotEmpty
-    //     : true) && // Ensure selectedSessions and selectedEntries are required only for userType != "1"
-    // ((widget.userType == "1" && hasSwimmingPool) ||
-    //     (widget.userType == "2" || widget.userType == "3"));
-    // (facilityPdfUrl != null && facilityPdfUrl!.isNotEmpty) &&
-    // (taxPdfUrl != null && taxPdfUrl!.isNotEmpty));
+
+    // For hotels, ensure at least one room type is selected
+    if (widget.userType == "1") {
+      bool roomTypeSelected =
+          single || double || suite || family || grandSuite || businessSuite;
+      return basicFieldsFilled && roomTypeSelected;
+    } else {
+      return basicFieldsFilled;
+    }
   }
 
   @override
@@ -437,18 +491,61 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             getTranslated(context, "Uploading..."),
                             style: const TextStyle(color: Colors.blue),
                           ),
+                        // if (facilityPdfUrl != null &&
+                        //     facilityPdfUrl!.isNotEmpty)
+                        //   Padding(
+                        //     padding: const EdgeInsets.only(top: 10.0),
+                        //     child: Text(
+                        //       getTranslated(context, "PDF Uploaded"),
+                        //       style: const TextStyle(
+                        //         color: Colors.green,
+                        //         fontSize: 14.0,
+                        //       ),
+                        //     ),
+                        //   ),
                         if (facilityPdfUrl != null &&
                             facilityPdfUrl!.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 10.0),
-                            child: Text(
-                              getTranslated(context, "PDF Uploaded"),
-                              style: const TextStyle(
-                                color: Colors.green,
-                                fontSize: 14.0,
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      getTranslated(context, "PDF Uploaded"),
+                                      style: const TextStyle(
+                                        color: Colors.green,
+                                        fontSize: 14.0,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.close,
+                                        color: Colors.red),
+                                    onPressed: () {
+                                      setState(() {
+                                        facilityPdfUrl = "";
+                                      });
+                                    },
+                                  ),
+                                ],
                               ),
-                            ),
+                              // Display a preview of the PDF in a container (adjust height as needed)
+                              Container(
+                                height: 300,
+                                child: PDF().cachedFromUrl(
+                                  facilityPdfUrl!,
+                                  placeholder: (progress) =>
+                                      Center(child: Text('$progress %')),
+                                  errorWidget: (error) =>
+                                      Center(child: Text('Error loading PDF')),
+                                ),
+                              ),
+                            ],
                           ),
+
                         Text(
                           getTranslated(context, "Upload Tax Number (PDF)"),
                           style: const TextStyle(
@@ -546,16 +643,56 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             getTranslated(context, "Uploading..."),
                             style: const TextStyle(color: Colors.blue),
                           ),
+                        // if (taxPdfUrl != null && taxPdfUrl!.isNotEmpty)
+                        //   Padding(
+                        //     padding: const EdgeInsets.only(top: 10.0),
+                        //     child: Text(
+                        //       getTranslated(context, "PDF Uploaded"),
+                        //       style: const TextStyle(
+                        //         color: Colors.green,
+                        //         fontSize: 14.0,
+                        //       ),
+                        //     ),
+                        //   ),
                         if (taxPdfUrl != null && taxPdfUrl!.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 10.0),
-                            child: Text(
-                              getTranslated(context, "PDF Uploaded"),
-                              style: const TextStyle(
-                                color: Colors.green,
-                                fontSize: 14.0,
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      getTranslated(context, "PDF Uploaded"),
+                                      style: const TextStyle(
+                                        color: Colors.green,
+                                        fontSize: 14.0,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.close,
+                                        color: Colors.red),
+                                    onPressed: () {
+                                      setState(() {
+                                        taxPdfUrl = "";
+                                      });
+                                    },
+                                  ),
+                                ],
                               ),
-                            ),
+                              Container(
+                                height: 300,
+                                child: PDF().cachedFromUrl(
+                                  taxPdfUrl!,
+                                  placeholder: (progress) =>
+                                      Center(child: Text('$progress %')),
+                                  errorWidget: (error) =>
+                                      Center(child: Text('Error loading PDF')),
+                                ),
+                              ),
+                            ],
                           ),
                       ],
                     ),
@@ -605,8 +742,111 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                     validate: true,
                     textInputType: TextInputType.url,
                   ),
-                  50.kH,
-                  // 80.kH,
+                  // Facility Section
+                  Visibility(
+                    visible: widget.userType == "1" ? true : false,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 20),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: kDeepPurpleColor),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            getTranslated(
+                                context, "Additional Services (Optional)"),
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: facilityNameController,
+                            decoration: InputDecoration(
+                              labelText: getTranslated(context, "Service Name"),
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: facilityNameArController,
+                            decoration: InputDecoration(
+                              labelText:
+                                  getTranslated(context, "Service Name Ar"),
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: facilityPriceController,
+                            decoration: InputDecoration(
+                              labelText:
+                                  getTranslated(context, "Service Price"),
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.text,
+                          ),
+                          const SizedBox(height: 10),
+                          ElevatedButton(
+                            onPressed: () {
+                              if (facilityNameController.text.isNotEmpty &&
+                                  facilityNameArController.text.isNotEmpty &&
+                                  facilityPriceController.text.isNotEmpty) {
+                                // Use a unique ID (here using timestamp)
+                                String id = DateTime.now()
+                                    .millisecondsSinceEpoch
+                                    .toString();
+                                Additional facility = Additional(
+                                  id: id,
+                                  name: facilityNameArController.text,
+                                  nameEn: facilityNameController.text,
+                                  price: facilityPriceController.text,
+                                  isBool: false,
+                                  color: Colors.white,
+                                );
+                                setState(() {
+                                  facilityList.add(facility);
+                                });
+                                facilityNameController.clear();
+                                facilityNameArController.clear();
+                                facilityPriceController.clear();
+                              }
+                            },
+                            child: Text(getTranslated(context, "Add Service")),
+                          ),
+                          const SizedBox(height: 10),
+                          facilityList.isNotEmpty
+                              ? ListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: facilityList.length,
+                                  itemBuilder: (context, index) {
+                                    final facility = facilityList[index];
+                                    return Card(
+                                      child: ListTile(
+                                        title: Text(facility.name),
+                                        subtitle: Text(facility.price),
+                                        trailing: IconButton(
+                                          icon: const Icon(Icons.delete),
+                                          onPressed: () {
+                                            setState(() {
+                                              facilityList.removeAt(index);
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                )
+                              : Container(),
+                        ],
+                      ),
+                    ),
+                  ),
+                  //
                   // Visibility(
                   //   visible: widget.userType == "3" ? true : false,
                   //   child: Row(
@@ -877,11 +1117,8 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                   //     ),
                   //   ),
                   // ),
-                  // Visibility(
-                  //   visible: widget.userType == "2" || widget.userType == "3",
-                  //   child: const ReusedProviderEstateContainer(
-                  //     hint: "Smoking Area?",
-                  //   ),
+                  // const ReusedProviderEstateContainer(
+                  //   hint: "Smoking Area?",
                   // ),
                   // Visibility(
                   //   visible: widget.userType == "2" || widget.userType == "3",
@@ -892,6 +1129,28 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                   //         CheckboxListTile(
                   //           title: Text(
                   //               getTranslated(context, "Is Smoking Allowed?")),
+                  //           value: checkIsSmokingAllowed,
+                  //           onChanged: (bool? value) {
+                  //             setState(() {
+                  //               checkIsSmokingAllowed = value ?? false;
+                  //             });
+                  //           },
+                  //           activeColor: kDeepPurpleColor,
+                  //           controlAffinity: ListTileControlAffinity.leading,
+                  //         ),
+                  //       ],
+                  //     ),
+                  //   ),
+                  // ),
+                  // Visibility(
+                  //   visible: widget.userType == "1",
+                  //   child: Container(
+                  //     margin: const EdgeInsetsDirectional.only(start: 50),
+                  //     child: Column(
+                  //       children: [
+                  //         CheckboxListTile(
+                  //           title: Text(getTranslated(
+                  //               context, "Is Smoking Allowed in some rooms?")),
                   //           value: checkIsSmokingAllowed,
                   //           onChanged: (bool? value) {
                   //             setState(() {
@@ -1254,7 +1513,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             if (single) listEntry.add("Single");
                             if (double) listEntry.add("Double");
                             if (suite) listEntry.add("Suite");
-                            if (family) listEntry.add("Family");
+                            if (family) listEntry.add("Hotel Apartments");
                             if (grandSuite) listEntry.add('Grand Suite');
                             if (businessSuite) listEntry.add('Business Suite');
 
@@ -1359,6 +1618,27 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                 roomBioEn: familyControllerBioEn.text,
                               );
                             }
+                            if (grandSuite) {
+                              await backendService.addRoom(
+                                estateId: idEstate.toString(),
+                                roomId: "4",
+                                roomName: "Grand Suite",
+                                roomPrice: grandSuiteController.text,
+                                roomBioAr: grandSuiteControllerBioAr.text,
+                                roomBioEn: grandSuiteControllerBioEn.text,
+                              );
+                            }
+                            if (businessSuite) {
+                              await backendService.addRoom(
+                                estateId: idEstate.toString(),
+                                roomId: "4",
+                                roomName: "Business Suite",
+                                roomPrice: businessSuiteController.text,
+                                roomBioAr: businessSuiteControllerBioAr.text,
+                                roomBioEn: businessSuiteControllerBioEn.text,
+                              );
+                            }
+                            await saveFacilities(idEstate.toString());
                             idEstate = (idEstate! + 1);
                             await backendService.updateEstateId(idEstate!);
 
@@ -1366,13 +1646,19 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             Navigator.of(context).pop();
 
                             // Navigate to MapsScreen after successful addition
-                            Navigator.of(context).push(
+                            // Navigator.of(context).push(
+                            //   MaterialPageRoute(
+                            //     builder: (context) => MapsScreen(
+                            //       id: ID,
+                            //       typeEstate: childType,
+                            //     ),
+                            //   ),
+                            // );
+                            Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(
-                                builder: (context) => MapsScreen(
-                                  id: ID,
-                                  typeEstate: childType,
-                                ),
-                              ),
+                                  builder: (context) => MapsScreen(
+                                      id: ID, typeEstate: childType)),
+                              (Route<dynamic> route) => false,
                             );
                           } else {
                             // Dismiss the loading dialog

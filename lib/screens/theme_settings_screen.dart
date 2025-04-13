@@ -376,7 +376,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               trailing: IconButton(
-                icon: const Icon(Icons.phone, color: kPurpleColor),
+                icon: const Icon(Icons.support_agent, color: kPurpleColor),
                 onPressed: () => _makePhoneCall("920031542"),
               ),
             ),
@@ -387,43 +387,99 @@ class SettingsScreen extends StatelessWidget {
               title: Text(
                 getTranslated(context, "Delete Account"),
                 style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                   color: Colors.red,
                 ),
               ),
-              trailing: const Icon(Icons.delete, color: Colors.red),
-              onTap: () {
-                final parentContext = context;
-                showDialog(
-                  context: parentContext,
-                  builder: (dialogContext) => AlertDialog(
-                    title: Text(getTranslated(parentContext, "Confirm Delete")),
-                    content: Text(
-                      getTranslated(
-                        parentContext,
-                        "Are you sure you want to delete your account? This action cannot be undone.",
+              subtitle: Text(
+                getTranslated(
+                    context, "Permanently delete your account and all data."),
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black54,
+                ),
+              ),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: Colors.redAccent,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.delete_forever, color: Colors.white),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.arrow_forward_ios, color: Colors.red),
+                onPressed: () {
+                  final parentContext = context;
+                  showDialog(
+                    context: parentContext,
+                    builder: (dialogContext) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
                       ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        child: Text(getTranslated(parentContext, "Cancel")),
+                      title: Column(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded,
+                              size: 50, color: Colors.red),
+                          const SizedBox(height: 10),
+                          Text(
+                            getTranslated(parentContext, "Confirm Delete"),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
                       ),
-                      TextButton(
-                        onPressed: () async {
-                          Navigator.of(dialogContext).pop();
-                          await _promptPassword(parentContext);
-                        },
-                        child: Text(
-                          getTranslated(parentContext, "Delete"),
-                          style: const TextStyle(color: Colors.red),
+                      content: Text(
+                        getTranslated(parentContext,
+                            "Are you sure you want to delete your account? This action cannot be undone."),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 14, color: Colors.black87),
+                      ),
+                      actionsAlignment: MainAxisAlignment.spaceEvenly,
+                      actions: [
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.grey[300],
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          icon: const Icon(Icons.cancel, color: Colors.black54),
+                          label: Text(getTranslated(parentContext, "Cancel")),
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onPressed: () async {
+                            Navigator.of(dialogContext).pop();
+                            await _promptPassword(parentContext);
+                          },
+                          icon: const Icon(Icons.delete_forever,
+                              color: Colors.white),
+                          label: Text(getTranslated(parentContext, "Delete")),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ],
         ),

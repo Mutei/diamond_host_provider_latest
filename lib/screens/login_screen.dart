@@ -88,7 +88,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 width: 230,
                                 decoration: BoxDecoration(
                                   color: Colors.grey.shade400,
-                                  // borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
                             ),
@@ -195,9 +194,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                 const SizedBox(height: 20),
 
                                 // PageView for Login Forms
+                                /// Increased the height fraction from 0.45 to 0.55
+                                /// to accommodate longer Arabic text and avoid overflow.
                                 SizedBox(
                                   height:
-                                      MediaQuery.of(context).size.height * 0.45,
+                                      MediaQuery.of(context).size.height * 0.55,
                                   child: PageView(
                                     controller: _pageController,
                                     onPageChanged: (index) {
@@ -206,6 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       });
                                     },
                                     children: [
+                                      // Email & Password Login
                                       Column(
                                         children: [
                                           ReusedTextFormField(
@@ -274,8 +276,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                               Navigator.push(
                                                 context,
                                                 MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        const ForgotPasswordScreen()),
+                                                  builder: (context) =>
+                                                      const ForgotPasswordScreen(),
+                                                ),
                                               );
                                             },
                                             child: Column(
@@ -299,8 +302,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                                         Navigator.push(
                                                           context,
                                                           MaterialPageRoute(
-                                                              builder: (context) =>
-                                                                  const SignInScreen()),
+                                                            builder: (context) =>
+                                                                const SignInScreen(),
+                                                          ),
                                                         );
                                                       },
                                                       child: Text(

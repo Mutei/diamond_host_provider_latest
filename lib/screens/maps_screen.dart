@@ -1,4 +1,3 @@
-import 'package:daimond_host_provider/private.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
@@ -14,7 +13,7 @@ import 'additional_facility_screen.dart';
 
 // Instantiate the GoogleMapsGeocoding with your API key.
 final GoogleMapsGeocoding _geocoding =
-    GoogleMapsGeocoding(apiKey: PrivateKeys.googleMapsApiKey);
+GoogleMapsGeocoding(apiKey: 'AIzaSyBcWIsTqNhp3HRDpUPao6RVhdrcDMpi3ys');
 
 class MapsScreen extends StatefulWidget {
   final String id;
@@ -113,7 +112,7 @@ class _MapsScreenState extends State<MapsScreen> {
     print("Searching for: $query");
     try {
       final GeocodingResponse response =
-          await _geocoding.searchByAddress(query);
+      await _geocoding.searchByAddress(query);
       if (response.status == 'OK' && response.results.isNotEmpty) {
         setState(() {
           _searchResults = response.results;
@@ -146,7 +145,7 @@ class _MapsScreenState extends State<MapsScreen> {
   Future<void> _selectLocation(GeocodingResult result) async {
     print("Selected location: ${result.formattedAddress}");
     LatLng newLatLng =
-        LatLng(result.geometry.location.lat, result.geometry.location.lng);
+    LatLng(result.geometry.location.lat, result.geometry.location.lng);
 
     setState(() {
       latLng = newLatLng;
@@ -270,7 +269,7 @@ class _MapsScreenState extends State<MapsScreen> {
                     final result = _searchResults[index];
                     return ListTile(
                       title:
-                          Text(result.formattedAddress ?? "Unknown location"),
+                      Text(result.formattedAddress ?? "Unknown location"),
                       onTap: () => _selectLocation(result),
                     );
                   },
@@ -308,25 +307,39 @@ class _MapsScreenState extends State<MapsScreen> {
                   });
                   print("Firebase updated successfully.");
 
-                  if (widget.typeEstate == "Hottel") {
-                    print("Navigating to AdditionalFacility screen...");
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (context) => AdditionalFacility(
-                        CheckState: "add",
-                        CheckIsBooking: false,
-                        IDEstate: widget.id,
-                        estate: const {},
-                      ),
-                    ));
-                  } else {
-                    print("Navigating to AddImage screen...");
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (context) => AddImage(
-                        IDEstate: widget.id.toString(),
-                        typeEstate: widget.typeEstate,
-                      ),
-                    ));
-                  }
+                  // if (widget.typeEstate == "Hottel") {
+                  //   print("Navigating to AdditionalFacility screen...");
+                  //   Navigator.of(context).push(MaterialPageRoute(
+                  //     builder: (context) => AdditionalFacility(
+                  //       CheckState: "add",
+                  //       CheckIsBooking: false,
+                  //       IDEstate: widget.id,
+                  //       estate: const {},
+                  //     ),
+                  //   ));
+                  // } else {
+                  //   print("Navigating to AddImage screen...");
+                  //   Navigator.of(context).push(MaterialPageRoute(
+                  //     builder: (context) => AddImage(
+                  //       IDEstate: widget.id.toString(),
+                  //       typeEstate: widget.typeEstate,
+                  //     ),
+                  //   ));
+                  // }
+                  // Navigator.of(context).push(MaterialPageRoute(
+                  //   builder: (context) => AddImage(
+                  //     IDEstate: widget.id.toString(),
+                  //     typeEstate: widget.typeEstate,
+                  //   ),
+                  // ));
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                        builder: (context) => AddImage(
+                          IDEstate: widget.id.toString(),
+                          typeEstate: widget.typeEstate,
+                        )),
+                        (Route<dynamic> route) => false,
+                  );
                 } catch (e) {
                   print("Error updating Firebase or navigating: $e");
                 }

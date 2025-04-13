@@ -29,6 +29,7 @@ migrate_working_dir/
 
 .flutter-plugins-dependencies
 assets/dmbook-db210-firebase-adminsdk-2682a-2c20d021db.json
+android/app/google-services.json
 lib/backend/firebase_services.dart
 android/app/src/main/AndroidManifest.xml
 lib/private.dart

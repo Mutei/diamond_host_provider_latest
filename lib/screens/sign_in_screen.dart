@@ -17,6 +17,8 @@ import '../widgets/reused_elevated_button.dart';
 import '../widgets/reused_phone_number_widget.dart';
 import '../widgets/reused_textform_field.dart';
 import 'login_screen.dart';
+// Import the global methods file that contains the loading dialog function.
+import '../utils/global_methods.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -170,7 +172,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
-                    ), // Adjust dynamically
+                    ),
                     Center(
                       child: Column(
                         children: [
@@ -288,7 +290,6 @@ class _SignInScreenState extends State<SignInScreen> {
                         title: RichText(
                           text: TextSpan(
                             text: getTranslated(context, 'I accept the '),
-                            // style: Theme.of(context).textTheme.bodyLarge,
                             style: TextStyle(color: kPrimaryColor),
                             children: <TextSpan>[
                               TextSpan(
@@ -326,6 +327,8 @@ class _SignInScreenState extends State<SignInScreen> {
                               );
                               return;
                             }
+                            // Show the custom loading dialog
+                            showCustomLoadingDialog(context);
 
                             try {
                               await _authMethods.signUpWithEmailPhone(
@@ -333,12 +336,18 @@ class _SignInScreenState extends State<SignInScreen> {
                                 password: _passwordController.text.trim(),
                                 phone: _phoneNumber!,
                                 acceptedTerms: _acceptedTerms,
-                                agentCode: _agentCodeController.text
-                                    .trim(), // Pass Agent Code
+                                agentCode: _agentCodeController.text.trim(),
                                 context: context,
                               );
+                              // Dismiss the loading dialog
+                              if (Navigator.canPop(context)) {
+                                Navigator.pop(context);
+                              }
                               print('OTP sent for verification');
                             } catch (e) {
+                              if (Navigator.canPop(context)) {
+                                Navigator.pop(context);
+                              }
                               print('Sign-up failed: $e');
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(

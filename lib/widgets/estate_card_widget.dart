@@ -1,14 +1,16 @@
 import 'dart:io';
-import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:daimond_host_provider/extension/sized_box_extension.dart';
-import 'package:daimond_host_provider/localization/language_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:shimmer/shimmer.dart';
+import '../constants/colors.dart';
 import '../constants/styles.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
+import '../localization/language_constants.dart';
 
 class EstateCard extends StatelessWidget {
   final String nameEn;
@@ -17,14 +19,14 @@ class EstateCard extends StatelessWidget {
   final double rating;
   final String typeAccount; // Add rating parameter
 
-  const EstateCard(
-      {super.key,
-      required this.nameEn,
-      required this.nameAr,
-      required this.estateId,
-      required this.rating,
-      required this.typeAccount // Pass rating to the constructor
-      });
+  const EstateCard({
+    super.key,
+    required this.nameEn,
+    required this.nameAr,
+    required this.estateId,
+    required this.rating,
+    required this.typeAccount, // Pass rating to the constructor
+  });
 
   Future<File> _getCachedImage(String estateId) async {
     final directory = await getTemporaryDirectory();
@@ -88,7 +90,7 @@ class EstateCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
       child: Card(
         color: Theme.of(context).brightness == Brightness.dark
-            ? Color(0xFF193945)
+            ? const Color(0xFF193945)
             : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         elevation: 4,
@@ -151,23 +153,29 @@ class EstateCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Display estate name based on the current language
+                  // Display estate name with flexible/truncated text
                   Row(
                     children: [
-                      Text(
-                        displayName,
-                        // style: kSecondaryStyle,
-                        style: const TextStyle(
-                          color: kEstatesTextsColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                      // Make the name flexible/truncated
+                      Expanded(
+                        child: Text(
+                          displayName,
+                          maxLines: 1, // Or 2, if you prefer two lines
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: kEstatesTextsColor,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       if (typeAccount == '2' || typeAccount == '3') ...[
                         5.kW,
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: typeAccount == '2'
                                 ? kPremiumTextColor.withOpacity(0.1)
@@ -212,57 +220,23 @@ class EstateCard extends StatelessWidget {
                             ],
                           ),
                         ),
-                        // if (typeAccount == '2' || typeAccount == '3') ...[
-                        //   typeAccount == "2"
-                        //       ? const FaIcon(
-                        //           FontAwesomeIcons.medal,
-                        //           color: kPremiumTextColor,
-                        //           size: 10,
-                        //         )
-                        //       : const FaIcon(
-                        //           FontAwesomeIcons.trophy,
-                        //           color: kPremiumPlusTextColor,
-                        //           size: 10,
-                        //         ),
-                        // ]
                       ],
                     ],
                   ),
-
                   const SizedBox(height: 8),
-                  // Rating, Fee, and Time info
+                  // Rating (star) row
                   Row(
                     children: [
                       const Icon(Icons.star, color: Colors.orange, size: 16),
                       const SizedBox(width: 4),
                       Text(
-                        rating.toStringAsFixed(1), // Display dynamic rating
+                        rating.toStringAsFixed(1),
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      // const SizedBox(width: 10),
-                      // const Icon(Icons.monetization_on,
-                      //     color: Colors.grey, size: 16),
-                      // const SizedBox(width: 4),
-                      // const Text(
-                      //   "Free", // Replace with dynamic fee data
-                      //   style: TextStyle(
-                      //     fontSize: 14,
-                      //     color: Colors.grey,
-                      //   ),
-                      // ),
-                      // const SizedBox(width: 10),
-                      // const Icon(Icons.timer, color: Colors.grey, size: 16),
-                      // const SizedBox(width: 4),
-                      // const Text(
-                      //   "20 min", // Replace with dynamic time data
-                      //   style: TextStyle(
-                      //     fontSize: 14,
-                      //     color: Colors.grey,
-                      //   ),
-                      // ),
+                      // If you want fee/time displayed again, you can add them here.
                     ],
                   ),
                 ],

@@ -3,6 +3,9 @@ import 'dart:typed_data';
 import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:daimond_host_provider/constants/styles.dart';
 import 'package:daimond_host_provider/utils/under_process_dialog.dart';
+import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -13,12 +16,13 @@ import 'package:image_picker/image_picker.dart';
 import '../backend/adding_estate_services.dart'; // Import the service
 import '../state_management/general_provider.dart';
 import '../utils/failure_dialogue.dart';
+import '../utils/global_methods.dart'; // Ensure this file includes showCustomLoadingDialog
 import 'main_screen.dart';
 import 'main_screen_content.dart';
 
 class AddImage extends StatefulWidget {
   final String IDEstate;
-  final String typeEstate; // Made non-nullable and required
+  final String typeEstate;
 
   const AddImage({
     super.key,
@@ -40,7 +44,7 @@ class _State extends State<AddImage> {
 
   List<UploadTask> _uploadTasks = [];
 
-  /// The user selects a file, and the task is added to the list.
+  /// Uploads the file to Firebase Storage.
   Future<UploadTask?> uploadFile(File? file, String id) async {
     if (file == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -50,9 +54,7 @@ class _State extends State<AddImage> {
       );
       return null;
     } else {
-      UploadTask uploadTask;
-
-      // Create a Reference to the file
+      // Create a reference to the file
       Reference ref =
           FirebaseStorage.instance.ref().child(IDEstate).child('/${id}.jpg');
 
@@ -61,20 +63,9 @@ class _State extends State<AddImage> {
         customMetadata: {'picked-file-path': file.path},
       );
 
-      uploadTask = ref.putData(await file.readAsBytes(), metadata);
+      UploadTask uploadTask = ref.putData(await file.readAsBytes(), metadata);
 
-      // Show the UnderProcessDialog instead of the SnackBar
-      await showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return UnderProcessDialog(
-            text: 'Processing',
-            text1: 'Your request is under process.',
-          );
-        },
-      );
-
-      return Future.value(uploadTask);
+      return uploadTask;
     }
   }
 
@@ -97,8 +88,7 @@ class _State extends State<AddImage> {
   @override
   Widget build(BuildContext context) {
     final objProvider = Provider.of<GeneralProvider>(context, listen: false);
-    final AddEstateServices backendService =
-        AddEstateServices(); // Instantiate the service
+    final AddEstateServices backendService = AddEstateServices();
 
     return Scaffold(
       key: _scaffoldKey1,
@@ -205,21 +195,70 @@ class _State extends State<AddImage> {
                     return;
                   }
 
-                  // Mark the estate as completed first
+                  // Show the custom loading dialog
+                  showCustomLoadingDialog(context);
+
+                  // Mark the estate as completed
                   await backendService.markEstateAsCompleted(
                       typeEstate, IDEstate);
 
+                  try {
+                    final String userId =
+                        FirebaseAuth.instance.currentUser!.uid;
+                    final DatabaseReference userRef = FirebaseDatabase.instance
+                        .ref()
+                        .child('App/User/$userId');
+                    final DataSnapshot userSnapshot = await userRef.get();
+
+                    if (userSnapshot.exists) {
+                      final Map userData = userSnapshot.value as Map;
+                      final String phoneNumber = userData['PhoneNumber'];
+
+                      // Send SMS
+                      await Dio().post(
+                        'https://backend-call-center-2.onrender.com/send-sms/underprocess', // Replace with IP for real devices
+                        data: {
+                          'to': phoneNumber,
+                          'message':
+                              'شكرا لتعاملكم مع شركة diamondhost لتطبيق رضاك سيتم معالجة طلبك في اقرب وقت ممكن ',
+                          'sender':
+                              'DiamondHost', // Must be registered with Taqnyat
+                        },
+                      );
+                    }
+                  } catch (e) {
+                    print("SMS sending failed: $e");
+                  }
+
                   // Upload all selected images
                   for (int i = 0; i < image.length; i++) {
-                    UploadTask? task = await uploadFile(image[i], i.toString());
-                    // Optionally, handle task completion or errors
+                    await uploadFile(image[i], i.toString());
                   }
+
+                  // Dismiss the custom loading dialog
+                  Navigator.of(context).pop();
+
+                  // Now show the UnderProcessDialog
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (BuildContext context) {
+                      return UnderProcessDialog(
+                        text: 'Processing',
+                        text1: 'Your request is under process.',
+                      );
+                    },
+                  );
+
+                  // Allow the under process dialog to be visible for a moment
+                  await Future.delayed(const Duration(seconds: 2));
+
+                  // Close the under process dialog
+                  Navigator.of(context).pop();
 
                   // Navigate to MainScreen after completion
                   Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (context) => MainScreenContent(),
-                    ),
+                    MaterialPageRoute(builder: (context) => const MainScreen()),
                     (Route<dynamic> route) => false,
                   );
                 },

@@ -1,16 +1,22 @@
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:daimond_host_provider/constants/styles.dart';
+import 'package:daimond_host_provider/extension/sized_box_extension.dart';
+import 'package:daimond_host_provider/screens/edit_estate_hotel_screen.dart';
 import 'package:daimond_host_provider/screens/qr_image_screen.dart';
 import 'package:daimond_host_provider/animations_widgets/build_shimmer_loader.dart';
+import 'package:firebase_database/ui/firebase_animated_list.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../backend/booking_services.dart';
+import '../backend/estate_services.dart';
 import '../constants/coffee_music_options.dart';
 import '../constants/entry_options.dart';
 import '../constants/hotel_entry_options.dart';
@@ -18,7 +24,10 @@ import '../constants/restaurant_options.dart';
 import '../constants/sessions_options.dart';
 import '../localization/language_constants.dart';
 import '../backend/customer_rate_services.dart';
+import '../state_management/general_provider.dart';
 import '../utils/rooms.dart';
+import '../utils/success_dialogue.dart';
+import '../utils/failure_dialogue.dart';
 import '../widgets/chip_widget.dart';
 import '../widgets/reused_elevated_button.dart';
 import 'edit_estate_screen.dart';
@@ -94,6 +103,7 @@ class ProfileEstateScreen extends StatefulWidget {
 
 class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
   List<String> _imageUrls = [];
+  List<Rooms> LstRoomsSelected = [];
   Map<String, dynamic> estate = {};
   List<Rooms> LstRooms = [];
   bool isLoading = true;
@@ -110,6 +120,35 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
     _fetchImageUrls();
     _fetchUserRatings();
     _fetchFeedback();
+    _fetchRooms();
+  }
+
+  Future<void> _fetchRooms() async {
+    // Note: unify the path to match the same one you use when saving in EditEstateHotel
+    DatabaseReference roomsRef = FirebaseDatabase.instance
+        .ref('App/Estate/Hottel/${widget.estateId}/Rooms');
+
+    final snapshot = await roomsRef.get();
+    List<Rooms> roomsTemp = [];
+    if (snapshot.exists && snapshot.value != null) {
+      Map data = snapshot.value as Map;
+      data.forEach((key, value) {
+        Rooms room = Rooms(
+          id: value["ID"] ?? "",
+          name: value["Name"] ?? "",
+          nameEn: value["NameEn"] ?? "", // If you store "NameEn" differently
+          price: value["Price"] ?? "",
+          bio: value["BioAr"] ?? "",
+          bioEn: value["BioEn"] ?? "",
+          color: Colors.white,
+        );
+        roomsTemp.add(room);
+      });
+    }
+
+    setState(() {
+      LstRooms = roomsTemp;
+    });
   }
 
   void _listenToEstateData() {
@@ -332,15 +371,30 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
 
   String getTranslatedSessions(BuildContext context, String types) {
     bool isArabic = Localizations.localeOf(context).languageCode == 'ar';
+
+    // Mapping for the English UI values:
+    Map<String, String> uiMapping = {
+      'Internal sessions': 'Indoor sessions',
+      'External sessions': 'Outdoor sessions'
+    };
+
+    // Split the sessions string from the database (it may have 1, 2 or 3 comma-separated values).
     List<String> typeList =
         types.split(',').map((type) => type.trim()).toList();
+
     List translatedTypes = typeList.map((type) {
+      // For English, if the type matches one of our keys, return the mapped value.
+      if (!isArabic && uiMapping.containsKey(type)) {
+        return uiMapping[type]!;
+      }
+      // Otherwise, fallback to what is defined in the sessionsOptions
       final match = sessionsOptions.firstWhere(
         (option) => option['label'] == type,
         orElse: () => {'label': type, 'labelAr': type},
       );
       return isArabic ? match['labelAr'] : match['label'];
     }).toList();
+
     return translatedTypes.join(', ');
   }
 
@@ -462,11 +516,10 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
           .cast<Map<String, dynamic>>()
           .toList();
     } else if (title == getTranslated(context, "Hotel Entry")) {
+      final entries =
+          (estate['Entry'] ?? '').split(',').map((e) => e.trim()).toList();
       estateOptions = hotelEntryOptions
-          .where((option) {
-            return estate['Entry']?.contains(option['label']) ?? false;
-          })
-          .cast<Map<String, dynamic>>()
+          .where((option) => entries.contains(option['label']))
           .toList();
     } else if (title == getTranslated(context, "Music")) {
       estateOptions = coffeeMusicOptions
@@ -500,18 +553,32 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                   ),
                 ),
               ),
-              Text(title,
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold)),
+              Text(
+                title,
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 16),
               Expanded(
                 child: ListView.builder(
                   itemCount: estateOptions.length,
                   itemBuilder: (context, index) {
                     final option = estateOptions[index];
+                    // Get the label from option, using Arabic label if needed.
+                    String displayLabel = isArabic
+                        ? option['labelAr'] ?? option['label']
+                        : option['label'] ?? "";
+                    // For sessions in English, remap certain labels.
+                    if (!isArabic &&
+                        title == getTranslated(context, "Sessions")) {
+                      if (displayLabel == "Internal sessions") {
+                        displayLabel = "Indoor sessions";
+                      } else if (displayLabel == "External sessions") {
+                        displayLabel = "Outdoor sessions";
+                      }
+                    }
                     return ListTile(
-                      title: Text(
-                          isArabic ? option['labelAr']! : option['label']!),
+                      title: Text(displayLabel),
                     );
                   },
                 ),
@@ -546,6 +613,7 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
     final String displayBio = languageCode == 'ar'
         ? (estate['BioAr'] ?? widget.bioAr)
         : (estate['BioEn'] ?? widget.bioEn);
+    final objProvider = Provider.of<GeneralProvider>(context, listen: true);
 
     return Scaffold(
       appBar: AppBar(
@@ -557,41 +625,62 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
             icon: const Icon(Icons.map_outlined, color: kDeepPurpleColor),
             onPressed: _launchMaps,
           ),
-          // if (widget.estateType != "1")
-          IconButton(
-            icon: const Icon(Icons.edit, color: kDeepPurpleColor),
-            onPressed: () async {
-              print("Navigating to EditEstate with the following details:");
-              print("Estate Object: $estate");
-              print("LstRooms: $LstRooms");
-              print("Estate Type: ${widget.estateType}");
-              print("Estate ID: ${widget.estateId}");
-              await Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) => EditEstate(
-                  objEstate: estate,
-                  LstRooms: LstRooms,
-                  estateType: widget.estateType,
-                  estateId: widget.estateId,
-                ),
-              ));
-              _fetchEstateData();
-              _fetchImageUrls();
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.chat, color: kDeepPurpleColor),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => EstateChatScreen(
+          if (widget.estateType != "1")
+            IconButton(
+              icon: const Icon(Icons.edit, color: kDeepPurpleColor),
+              onPressed: () async {
+                print("Navigating to EditEstate with the following details:");
+                print("Estate Object: $estate");
+                print("LstRooms: $LstRooms");
+                print("Estate Type: ${widget.estateType}");
+                print("Estate ID: ${widget.estateId}");
+                await Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => EditEstate(
+                    objEstate: estate,
+                    LstRooms: LstRooms,
+                    estateType: widget.estateType,
                     estateId: widget.estateId,
-                    estateNameEn: widget.nameEn,
-                    estateNameAr: widget.nameAr,
                   ),
-                ),
-              );
-            },
-          )
+                ));
+                _fetchEstateData();
+                _fetchImageUrls();
+              },
+            ),
+          if (widget.estateType == "1")
+            IconButton(
+              icon: const Icon(Icons.edit, color: kDeepPurpleColor),
+              onPressed: () async {
+                print("Navigating to EditEstate with the following details:");
+                print("Estate Object: $estate");
+                print("LstRooms: $LstRooms");
+                print("Estate Type: ${widget.estateType}");
+                print("Estate ID: ${widget.estateId}");
+                await Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => EditEstateHotel(
+                    objEstate: estate,
+                    LstRooms: LstRooms,
+                    estateType: widget.estateType,
+                    estateId: widget.estateId,
+                  ),
+                ));
+                _fetchEstateData();
+                _fetchImageUrls();
+              },
+            ),
+          // IconButton(
+          //   icon: const Icon(Icons.chat, color: kDeepPurpleColor),
+          //   onPressed: () {
+          //     Navigator.of(context).push(
+          //       MaterialPageRoute(
+          //         builder: (context) => EstateChatScreen(
+          //           estateId: widget.estateId,
+          //           estateNameEn: widget.nameEn,
+          //           estateNameAr: widget.nameAr,
+          //         ),
+          //       ),
+          //     );
+          //   },
+          // ),
         ],
       ),
       body: isLoading
@@ -928,6 +1017,7 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                                 sessionsOptions.cast<Map<String, dynamic>>(),
                               ),
                             ),
+
                           if (widget.type == "1")
                             InfoChip(
                               icon: Icons.grain,
@@ -998,7 +1088,7 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                             InfoChip(
                               icon: Icons.bathtub,
                               label: estate['HasJacuzziInRoom'] == "1"
-                                  ? getTranslated(context, "We have jacuzzi")
+                                  ? getTranslated(context, "We have jaccuzzi")
                                   : getTranslated(
                                       context, "We don't have jacuzzi"),
                             ),
@@ -1008,13 +1098,19 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                               label: getTranslated(
                                   context, "Valet service available"),
                             ),
-                          if (estate['HasValet'] == "1")
+                          if (estate['HasValet'] == "1" &&
+                              estate['ValetWithFees'] == "1")
                             InfoChip(
-                              icon: Icons.money,
-                              label: estate['ValetWithFees'] == "1"
-                                  ? getTranslated(context, "Valet is not free")
-                                  : getTranslated(context, "Valet is free"),
-                            ),
+                                icon: Icons.money,
+                                label: getTranslated(
+                                    context, "Valet is not free")),
+                          // // if (estate['HasValet'] == "1")
+                          // //   InfoChip(
+                          // //     icon: Icons.money,
+                          // //     label: estate['ValetWithFees'] == "1"
+                          // //         ? getTranslated(context, "Valet is not free")
+                          // //         : getTranslated(context, "Valet is free"),
+                          //   ),
                           if (widget.type == "1" &&
                               (estate['HasSwimmingPool'] != null &&
                                   estate['HasSwimmingPool'] != "" &&
@@ -1045,7 +1141,7 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                             InfoChip(
                               icon: Icons.fitness_center,
                               label: estate['HasGym'] == "1"
-                                  ? getTranslated(context, "We have gym")
+                                  ? getTranslated(context, "We have Gym")
                                   : getTranslated(context, "We don't have gym"),
                             ),
                           if (widget.type == "1" &&
@@ -1068,6 +1164,64 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
+                      Visibility(
+                        visible: widget.type == "1",
+                        child: AutoSizeText(
+                          getTranslated(context, "Rooms"),
+                          style: kTeritary,
+                          maxLines: 1,
+                          minFontSize: 12,
+                        ),
+                      ),
+                      Visibility(
+                        visible: widget.type == "1",
+                        child: FirebaseAnimatedList(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          query: FirebaseDatabase.instance
+                              .ref("App")
+                              .child("Estate")
+                              .child("Hottel")
+                              .child(widget.estateId.toString())
+                              .child("Rooms"),
+                          itemBuilder: (context, snapshot, animation, index) {
+                            Map map = snapshot.value as Map;
+                            Rooms room = Rooms(
+                              id: map['ID'] ?? "",
+                              name: map['Name'] ?? "",
+                              nameEn: map['NameEn'] ?? "",
+                              price: map['Price'] ?? "",
+                              bio: map['BioAr'] ?? "",
+                              bioEn: map['BioEn'] ?? "",
+                              color: Colors.white,
+                            );
+
+                            // Use your provider or logic to decide which language to display:
+                            // final displayName = objProvider.CheckLangValue
+                            //     ? room.nameEn
+                            //     : room.name;
+                            final displayName = room.name;
+                            final displayBio = objProvider.CheckLangValue
+                                ? room.bioEn
+                                : room.bio;
+
+                            return GestureDetector(
+                              onTap: () {
+                                // ...
+                              },
+                              child: ListTile(
+                                title: Text(displayName),
+                                subtitle: Text(displayBio),
+                                leading: const Icon(Icons.single_bed,
+                                    color: Colors.black),
+                                trailing: Text(room.price,
+                                    style: const TextStyle(
+                                        color: kDeepPurpleColor)),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                       AutoSizeText(
                         getTranslated(context, "Feedback"),
                         style: kTeritary.copyWith(

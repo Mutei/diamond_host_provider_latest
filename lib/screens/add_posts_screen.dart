@@ -1029,12 +1029,13 @@ class _AddPostScreenState extends State<AddPostScreen> {
                     if (userType == "2")
                       DropdownButtonFormField<String>(
                         value: _selectedEstate,
+                        isExpanded: true, // <-- Add this
                         decoration: InputDecoration(
                           filled: true,
                           fillColor:
-                              Theme.of(context).brightness == Brightness.dark
-                                  ? kDarkModeColor
-                                  : Colors.grey[200],
+                          Theme.of(context).brightness == Brightness.dark
+                              ? kDarkModeColor
+                              : Colors.grey[200],
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8.0),
                           ),
@@ -1044,7 +1045,11 @@ class _AddPostScreenState extends State<AddPostScreen> {
                           return DropdownMenuItem<String>(
                             value: estate['id'],
                             child: Text(
-                                '${estate['data']['NameEn']} (${estate['type']})'),
+                              '${estate['data']['NameEn']} (${estate['type']})',
+                              maxLines: 1,
+                              overflow: TextOverflow
+                                  .ellipsis, // <-- Add this for safety
+                            ),
                           );
                         }).toList(),
                         onChanged: (value) {

@@ -1,6 +1,6 @@
-import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:daimond_host_provider/widgets/reused_provider_estate_container.dart';
 import 'package:flutter/material.dart';
+import '../constants/colors.dart';
 import '../localization/language_constants.dart';
 import 'birthday_textform_field.dart';
 
@@ -90,7 +90,7 @@ class RoomTypeVisibility extends StatefulWidget {
 
 class _RoomTypeVisibilityState extends State<RoomTypeVisibility> {
   // Maps to store individual state for each room type
-  Map<String, bool> checkIsSmokingAllowed = {};
+  // Map<String, bool> checkIsSmokingAllowed = {};
   Map<String, bool> checkIsThereLounge = {};
   Map<String, bool> checkIsThereBreakfastLounge = {};
   Map<String, bool> checkIsThereLaunchLounge = {};
@@ -119,7 +119,7 @@ class _RoomTypeVisibilityState extends State<RoomTypeVisibility> {
 
   void _initializeRoomState(String roomType) {
     // Initialize each state variable for the room type only if not already initialized
-    checkIsSmokingAllowed.putIfAbsent(roomType, () => false);
+    // checkIsSmokingAllowed.putIfAbsent(roomType, () => false);
     checkIsThereLounge.putIfAbsent(roomType, () => false);
     checkIsThereBreakfastLounge.putIfAbsent(roomType, () => false);
     checkIsThereLaunchLounge.putIfAbsent(roomType, () => false);
@@ -373,17 +373,17 @@ class _RoomTypeVisibilityState extends State<RoomTypeVisibility> {
                         control: controller,
                         isObsecured: false,
                         validate: true,
-                        textInputType: TextInputType.phone,
+                        textInputType: TextInputType.text,
                       ),
-                      _buildCheckboxRow(
-                        context,
-                        "Is smoking allowed in the room?",
-                        checkIsSmokingAllowed[type]!,
-                        (value) {
-                          setState(() => checkIsSmokingAllowed[type] = value);
-                          widget.onCheckboxChanged(value, "IsSmokingAllowed");
-                        },
-                      ),
+                      // _buildCheckboxRow(
+                      //   context,
+                      //   "Is smoking allowed in the room?",
+                      //   checkIsSmokingAllowed[type]!,
+                      //   (value) {
+                      //     setState(() => checkIsSmokingAllowed[type] = value);
+                      //     widget.onCheckboxChanged(value, "IsSmokingAllowed");
+                      //   },
+                      // ),
                       _buildCheckboxRow(
                         context,
                         "Is there a Lounge?",
@@ -496,7 +496,7 @@ class _RoomTypeVisibilityState extends State<RoomTypeVisibility> {
   void _clearRoomTypeState(String type, Function(bool) onChanged) {
     setState(() {
       // Clear the checkboxes
-      checkIsSmokingAllowed[type] = false;
+      // checkIsSmokingAllowed[type] = false;
       checkIsThereLounge[type] = false;
       checkIsThereBreakfastLounge[type] = false;
       checkIsThereLaunchLounge[type] = false;

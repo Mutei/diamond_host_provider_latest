@@ -162,20 +162,45 @@ class _EditEstateState extends State<EditEstate> {
     stateValue = widget.objEstate["State"];
 
     // Initialize selectedRestaurantTypes from objEstate if available
+    // if (widget.objEstate.containsKey('TypeofRestaurant')) {
+    //   String typeOfRestaurant = widget.objEstate['TypeofRestaurant'];
+    //   selectedRestaurantTypes =
+    //       typeOfRestaurant.split(',').map((e) => e.trim()).toList();
+    // }
     if (widget.objEstate.containsKey('TypeofRestaurant')) {
       String typeOfRestaurant = widget.objEstate['TypeofRestaurant'];
-      selectedRestaurantTypes =
-          typeOfRestaurant.split(',').map((e) => e.trim()).toList();
+      selectedRestaurantTypes = typeOfRestaurant
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
     }
 
     // Initialize selectedEntries from objEstate if available
+    // if (widget.objEstate.containsKey('Entry')) {
+    //   String entry = widget.objEstate['Entry'];
+    //   selectedEntries = entry.split(',').map((e) => e.trim()).toList();
+    // }
     if (widget.objEstate.containsKey('Entry')) {
       String entry = widget.objEstate['Entry'];
-      selectedEntries = entry.split(',').map((e) => e.trim()).toList();
+      selectedEntries = entry
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
     }
+
+    // if (widget.objEstate.containsKey('Sessions')) {
+    //   String entry = widget.objEstate['Sessions'];
+    //   selectedEditSessionsType = entry.split(',').map((e) => e.trim()).toList();
+    // }
     if (widget.objEstate.containsKey('Sessions')) {
       String entry = widget.objEstate['Sessions'];
-      selectedEditSessionsType = entry.split(',').map((e) => e.trim()).toList();
+      selectedEditSessionsType = entry
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
     }
     if (widget.objEstate.containsKey('additionals')) {
       String entry = widget.objEstate['additionals'];
@@ -183,9 +208,17 @@ class _EditEstateState extends State<EditEstate> {
           entry.split(',').map((e) => e.trim()).toList();
     }
     isMusicSelected = widget.objEstate["Music"] == "1";
+    // if (widget.objEstate.containsKey('Lstmusic')) {
+    //   String entry = widget.objEstate['Lstmusic'];
+    //   lstMusicCoffee = entry.split(',').map((e) => e.trim()).toList();
+    // }
     if (widget.objEstate.containsKey('Lstmusic')) {
       String entry = widget.objEstate['Lstmusic'];
-      lstMusicCoffee = entry.split(',').map((e) => e.trim()).toList();
+      lstMusicCoffee = entry
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
     }
     hasKidsArea = widget.objEstate["HasKidsArea"] == "1"; // Initialize
     hasSwimmingPoolSelected =
@@ -572,7 +605,7 @@ class _EditEstateState extends State<EditEstate> {
           selectedEditSessionsType.isEmpty) {
         return false; // If no selection made, return false
       }
-    } else {
+    } else if (widget.estateType == "2") {
       // For other estate types, just check entries and sessions
       if (selectedEntries.isEmpty || selectedEditSessionsType.isEmpty) {
         return false; // If no selection made, return false
@@ -1505,40 +1538,6 @@ class _EditEstateState extends State<EditEstate> {
             child: Row(
               children: [
                 Expanded(
-                  flex: 2,
-                  child: Visibility(
-                    visible: estateType == "1",
-                    child: InkWell(
-                      child: Container(
-                        width: 150.w,
-                        height: 6.h,
-                        margin: const EdgeInsets.only(
-                            right: 20, left: 20, bottom: 30),
-                        decoration: BoxDecoration(
-                          color: kPurpleColor,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Center(
-                          child: Text(
-                            getTranslated(context, "Skip"),
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ),
-                      onTap: () async {
-                        Navigator.of(context).push(MaterialPageRoute(
-                            builder: (context) => AdditionalFacility(
-                                  CheckState: "Edit",
-                                  CheckIsBooking: false,
-                                  estate: const {},
-                                  IDEstate:
-                                      widget.objEstate['IDEstate'].toString(),
-                                )));
-                      },
-                    ),
-                  ),
-                ),
-                Expanded(
                   flex: 3,
                   child: InkWell(
                     child: Container(
@@ -1673,16 +1672,7 @@ class _EditEstateState extends State<EditEstate> {
                         );
 
                         // Navigate based on estate type after success
-                        if (estateType == "1") {
-                          Navigator.of(context).push(MaterialPageRoute(
-                            builder: (context) => AdditionalFacility(
-                              CheckState: "Edit",
-                              CheckIsBooking: false,
-                              estate: const {},
-                              IDEstate: widget.objEstate['IDEstate'].toString(),
-                            ),
-                          ));
-                        } else if (estateType == "2") {
+                        if (estateType == "2") {
                           Navigator.of(context)
                               .popUntil((route) => route.isFirst);
                         } else if (estateType == "3") {
