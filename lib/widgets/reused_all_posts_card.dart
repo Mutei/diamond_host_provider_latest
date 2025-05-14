@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
-import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -9,8 +8,11 @@ import 'package:video_player/video_player.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 // Import your localization helper
-import 'package:daimond_host_provider/localization/language_constants.dart';
 import 'package:visibility_detector/visibility_detector.dart';
+
+import '../constants/colors.dart';
+import '../localization/language_constants.dart';
+import 'full_screen_image_widget.dart';
 
 class ReusedAllPostsCards extends StatefulWidget {
   final Map post;
@@ -18,15 +20,17 @@ class ReusedAllPostsCards extends StatefulWidget {
   final String? currentUserProfileImage;
   final String? currentUserTypeAccount;
   final VoidCallback onDelete;
+  final VoidCallback onEdit;
 
-  const ReusedAllPostsCards({
-    Key? key,
-    required this.post,
-    required this.currentUserId,
-    required this.currentUserProfileImage,
-    required this.currentUserTypeAccount,
-    required this.onDelete,
-  }) : super(key: key);
+  const ReusedAllPostsCards(
+      {Key? key,
+      required this.post,
+      required this.currentUserId,
+      required this.currentUserProfileImage,
+      required this.currentUserTypeAccount,
+      required this.onDelete,
+      required this.onEdit})
+      : super(key: key);
 
   @override
   _ReusedAllPostsCardsState createState() => _ReusedAllPostsCardsState();
@@ -49,6 +53,9 @@ class _ReusedAllPostsCardsState extends State<ReusedAllPostsCards> {
 
   // State Variable to Track Visible Replies
   Set<String> _visibleReplies = {};
+
+  // NEW: Current page index for the media PageView
+  int _currentPage = 0;
 
   @override
   void initState() {
@@ -358,12 +365,14 @@ class _ReusedAllPostsCardsState extends State<ReusedAllPostsCards> {
       trailing: widget.currentUserId == widget.post['userId']
           ? PopupMenuButton<String>(
               onSelected: (value) {
-                if (value == 'Delete') {
+                if (value == 'Edit') {
+                  widget.onEdit();
+                } else if (value == 'Delete') {
                   widget.onDelete();
                 }
               },
               itemBuilder: (BuildContext context) {
-                return {'Delete'}.map((String choice) {
+                return {'Edit', 'Delete'}.map((String choice) {
                   return PopupMenuItem<String>(
                     value: choice,
                     child: Text(getTranslated(context, choice)),
@@ -528,138 +537,167 @@ class _ReusedAllPostsCardsState extends State<ReusedAllPostsCards> {
     );
   }
 
-  // Build images and videos in the post
+  // Build images and videos in the post with a media counter overlay.
   Widget _buildImageVideoContent() {
-    List imageUrls = widget.post['ImageUrls'] ?? [];
-    List videoUrls = widget.post['VideoUrls'] ?? [];
+    List<String> imageUrls = List<String>.from(widget.post['ImageUrls'] ?? []);
+    List<String> videoUrls = List<String>.from(widget.post['VideoUrls'] ?? []);
+    final int totalMedia = imageUrls.length + videoUrls.length;
 
-    if (imageUrls.isEmpty && videoUrls.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    if (totalMedia == 0) return const SizedBox.shrink();
 
-    // Limit the feed preview height so it's not too tall
     return Container(
       color: Colors.black,
       constraints: const BoxConstraints(maxHeight: 300),
-      child: PageView.builder(
-        controller: _pageController,
-        itemCount: imageUrls.length + videoUrls.length,
-        itemBuilder: (context, index) {
-          // Show images first
-          if (index < imageUrls.length) {
-            return CachedNetworkImage(
-              imageUrl: imageUrls[index],
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Shimmer.fromColors(
-                baseColor: Colors.grey[300]!,
-                highlightColor: Colors.grey[100]!,
-                child: Container(
-                  color: Colors.white,
-                  height: 300,
-                ),
-              ),
-              errorWidget: (context, url, error) => const Icon(Icons.error),
-            );
-          } else {
-            // Then show videos
-            String videoUrl = videoUrls[index - imageUrls.length];
+      child: Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() => _currentPage = index);
+            },
+            itemCount: totalMedia,
+            itemBuilder: (context, index) {
+              // --- IMAGES ---
+              if (index < imageUrls.length) {
+                final imgUrl = imageUrls[index];
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => FullScreenImageViewer(
+                          imageUrls: imageUrls,
+                          initialIndex: index,
+                        ),
+                      ),
+                    );
+                  },
+                  child: CachedNetworkImage(
+                    imageUrl: imgUrl,
+                    fit: BoxFit.cover,
+                    placeholder: (c, url) => Shimmer.fromColors(
+                      baseColor: Colors.grey[300]!,
+                      highlightColor: Colors.grey[100]!,
+                      child: Container(color: Colors.white, height: 300),
+                    ),
+                    errorWidget: (c, url, e) => const Icon(Icons.error),
+                  ),
+                );
+              }
 
-            return VisibilityDetector(
-              key: Key(
-                  'video-${widget.post['postId']}-${index - imageUrls.length}'),
-              onVisibilityChanged: (VisibilityInfo info) {
-                if (_videoController != null &&
-                    _videoController!.value.isInitialized) {
-                  if (info.visibleFraction > 0.5) {
-                    // Auto-play when more than 50% visible
-                    if (!_videoController!.value.isPlaying) {
-                      _videoController!.play();
-                      _videoController!.setVolume(1.0);
-                    }
-                  } else {
-                    // Pause when less than 50% visible
-                    if (_videoController!.value.isPlaying) {
-                      _videoController!.pause();
+              // --- VIDEOS ---
+              final videoUrl = videoUrls[index - imageUrls.length];
+              return VisibilityDetector(
+                key: Key('video-${widget.post['postId']}-$index'),
+                onVisibilityChanged: (info) {
+                  if (_videoController != null &&
+                      _videoController!.value.isInitialized) {
+                    if (info.visibleFraction > 0.5) {
+                      if (!_videoController!.value.isPlaying) {
+                        _videoController!
+                          ..play()
+                          ..setVolume(1.0);
+                      }
+                    } else {
+                      if (_videoController!.value.isPlaying) {
+                        _videoController!..pause();
+                      }
                     }
                   }
-                }
-              },
-              child: _videoController == null
-                  ? const Center(child: CircularProgressIndicator())
-                  : Stack(
-                      alignment: Alignment.bottomCenter,
-                      children: [
-                        AspectRatio(
-                          // Fallback to 16/9 if ratio is zero (not yet initialized)
-                          aspectRatio: _videoController!.value.aspectRatio > 0
-                              ? _videoController!.value.aspectRatio
-                              : 16 / 9,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _videoController!.value.isPlaying
-                                    ? _videoController?.pause()
-                                    : _videoController?.play();
-                              });
-                            },
-                            child: VideoPlayer(_videoController!),
-                          ),
-                        ),
-
-                        // Video Controls (Play/Pause, Mute, Fullscreen)
-                        Positioned(
-                          bottom: 10,
-                          right: 10,
-                          child: Row(
-                            children: [
-                              IconButton(
-                                icon: Icon(
+                },
+                child: _videoController == null
+                    ? const Center(child: CircularProgressIndicator())
+                    : Stack(
+                        alignment: Alignment.bottomCenter,
+                        children: [
+                          AspectRatio(
+                            aspectRatio: _videoController!.value.aspectRatio > 0
+                                ? _videoController!.value.aspectRatio
+                                : 16 / 9,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
                                   _videoController!.value.isPlaying
-                                      ? Icons.pause
-                                      : Icons.play_arrow,
-                                  color: Colors.white,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _videoController!.value.isPlaying
-                                        ? _videoController?.pause()
-                                        : _videoController?.play();
-                                  });
-                                },
-                              ),
-                              IconButton(
-                                icon: Icon(
-                                  _videoController!.value.volume > 0
-                                      ? Icons.volume_up
-                                      : Icons.volume_off,
-                                  color: Colors.white,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _videoController!.setVolume(
-                                        _videoController!.value.volume > 0
-                                            ? 0
-                                            : 1);
-                                  });
-                                },
-                              ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.fullscreen,
-                                  color: Colors.white,
-                                ),
-                                onPressed: () {
-                                  _enterFullScreen();
-                                },
-                              ),
-                            ],
+                                      ? _videoController?.pause()
+                                      : _videoController?.play();
+                                });
+                              },
+                              child: VideoPlayer(_videoController!),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-            );
-          }
-        },
+
+                          // Inline Video Controls
+                          Positioned(
+                            bottom: 10,
+                            right: 10,
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  icon: Icon(
+                                    _videoController!.value.isPlaying
+                                        ? Icons.pause
+                                        : Icons.play_arrow,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _videoController!.value.isPlaying
+                                          ? _videoController?.pause()
+                                          : _videoController?.play();
+                                    });
+                                  },
+                                ),
+                                IconButton(
+                                  icon: Icon(
+                                    _videoController!.value.volume > 0
+                                        ? Icons.volume_up
+                                        : Icons.volume_off,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _videoController!.setVolume(
+                                          _videoController!.value.volume > 0
+                                              ? 0
+                                              : 1);
+                                    });
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.fullscreen,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: () {
+                                    _enterFullScreen();
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+              );
+            },
+          ),
+
+          // Media counter overlay
+          if (totalMedia > 1)
+            Positioned(
+              bottom: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${_currentPage + 1} / $totalMedia',
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

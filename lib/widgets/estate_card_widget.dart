@@ -1,23 +1,21 @@
 import 'dart:io';
+import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:daimond_host_provider/extension/sized_box_extension.dart';
+import 'package:daimond_host_provider/localization/language_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:shimmer/shimmer.dart';
-import '../constants/colors.dart';
 import '../constants/styles.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-
-import '../localization/language_constants.dart';
 
 class EstateCard extends StatelessWidget {
   final String nameEn;
   final String nameAr;
   final String estateId;
   final double rating;
-  final String typeAccount; // Add rating parameter
+  final String typeAccount;
 
   const EstateCard({
     super.key,
@@ -25,48 +23,41 @@ class EstateCard extends StatelessWidget {
     required this.nameAr,
     required this.estateId,
     required this.rating,
-    required this.typeAccount, // Pass rating to the constructor
+    required this.typeAccount,
   });
 
   Future<File> _getCachedImage(String estateId) async {
     final directory = await getTemporaryDirectory();
-    final filePath = '${directory.path}/$estateId.jpg';
+    final storageRef = FirebaseStorage.instance.ref().child(estateId);
+    final listResult = await storageRef.listAll();
+
+    if (listResult.items.isEmpty) {
+      throw Exception("No image found for estate: $estateId");
+    }
+
+    // pick the first image under that folder
+    final firstImageRef = listResult.items.first;
+
+    // include the actual filename in our cache key:
+    final fileName = '${estateId}_${firstImageRef.name}';
+    final filePath = '${directory.path}/$fileName';
     final cachedImage = File(filePath);
 
     try {
-      // ✅ Check if the image exists in cache
       if (await cachedImage.exists()) {
-        // ✅ Get last modified time of cached file
+        // compare file‐system timestamp vs. storage metadata.updated
         DateTime lastModified = await cachedImage.lastModified();
-
-        // ✅ Fetch the latest image metadata from Firebase Storage
-        final storageRef = FirebaseStorage.instance.ref().child(estateId);
-        final listResult = await storageRef.listAll();
-
-        if (listResult.items.isEmpty) {
-          throw Exception("No image found for estate: $estateId");
-        }
-
-        final firstImageRef = listResult.items.first;
         final metadata = await firstImageRef.getMetadata();
 
-        // ✅ Compare timestamps: If local file is older than Firebase version, update it
         if (metadata.updated != null &&
             metadata.updated!.isAfter(lastModified)) {
-          await cachedImage.delete(); // Delete outdated image
+          await cachedImage.delete();
         } else {
-          return cachedImage; // ✅ Use existing cached image
+          return cachedImage;
         }
       }
 
-      // ✅ If no valid cache exists, download the image
-      final storageRef = FirebaseStorage.instance.ref().child(estateId);
-      final listResult = await storageRef.listAll();
-      if (listResult.items.isEmpty) {
-        throw Exception("No image found for estate: $estateId");
-      }
-
-      final firstImageRef = listResult.items.first;
+      // download fresh
       final imageUrl = await firstImageRef.getDownloadURL();
       final response = await http.get(Uri.parse(imageUrl));
 
@@ -83,7 +74,7 @@ class EstateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String displayName =
+    final displayName =
         Localizations.localeOf(context).languageCode == 'ar' ? nameAr : nameEn;
 
     return Padding(
@@ -97,7 +88,6 @@ class EstateCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Estate Image
             FutureBuilder<File>(
               future: _getCachedImage(estateId),
               builder: (context, snapshot) {
@@ -112,7 +102,7 @@ class EstateCard extends StatelessWidget {
                           topLeft: Radius.circular(15),
                           topRight: Radius.circular(15),
                         ),
-                        color: Colors.grey[200], // Background color for shimmer
+                        color: Colors.grey[200],
                       ),
                     ),
                   );
@@ -147,20 +137,17 @@ class EstateCard extends StatelessWidget {
                 }
               },
             ),
-
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Display estate name with flexible/truncated text
                   Row(
                     children: [
-                      // Make the name flexible/truncated
                       Expanded(
                         child: Text(
                           displayName,
-                          maxLines: 1, // Or 2, if you prefer two lines
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: kEstatesTextsColor,
@@ -224,7 +211,6 @@ class EstateCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  // Rating (star) row
                   Row(
                     children: [
                       const Icon(Icons.star, color: Colors.orange, size: 16),
@@ -236,7 +222,6 @@ class EstateCard extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      // If you want fee/time displayed again, you can add them here.
                     ],
                   ),
                 ],

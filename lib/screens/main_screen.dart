@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import '../backend/firebase_services.dart';
 import '../widgets/bottom_navigation_bar.dart';
 import 'all_posts_screen.dart';
 import 'notification_screen.dart';
@@ -33,7 +34,10 @@ class _MainScreenState extends State<MainScreen> {
   String? currentDeviceToken;
   late DatabaseReference tokenRef;
   StreamSubscription<DatabaseEvent>? tokenSubscription;
-  Timer? _logoutTimer; // Timer for auto-sign out
+  Timer? _logoutTimer;
+
+  // Listener for disabled accounts
+  StreamSubscription<User?>? _disabledListener;
 
   final List<Widget> _screens = [
     const MainScreenContent(),
@@ -45,8 +49,10 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     checkPersonalInfo();
+    FirebaseServices().initMessage();
     _initializeTokenListener();
-    // Show alert dialog for new booking request after the first frame is rendered.
+    _initializeDisabledListener();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<GeneralProvider>(context, listen: false);
       if (provider.newRequestCount > 0) {
@@ -59,7 +65,7 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 Text(getTranslated(context, "You have")),
                 Text(
-                  " ${provider.newRequestCount.toString()} ",
+                  " ${provider.newRequestCount} ",
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(getTranslated(context, "new booking request(s).")),
@@ -67,9 +73,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
+                onPressed: () => Navigator.of(context).pop(),
                 child: Text(getTranslated(context, "OK")),
               )
             ],
@@ -79,12 +83,9 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  // Initialize token listener to enforce single-device login
+  /// Initialize token listener to enforce single-device login
   Future<void> _initializeTokenListener() async {
-    // Get current device's FCM token
     currentDeviceToken = await FirebaseMessaging.instance.getToken();
-
-    // Set up a listener on the user's token in the database
     String uid = FirebaseAuth.instance.currentUser!.uid;
     tokenRef = FirebaseDatabase.instance.ref("App/User/$uid/Token");
     tokenSubscription = tokenRef.onValue.listen((DatabaseEvent event) {
@@ -97,24 +98,37 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  // Handle token mismatch by alerting the user and signing them out
-  void _handleTokenMismatch() {
-    // If already scheduled, do nothing
-    if (_logoutTimer != null) return;
+  /// Initialize listener to detect if the user's Firebase Auth account is disabled
+  Future<void> _initializeDisabledListener() async {
+    _disabledListener = FirebaseAuth.instance.idTokenChanges().listen((user) {
+      if (user != null) {
+        // Force token refresh; will throw if user is disabled
+        user.getIdToken(true).catchError((err) {
+          if (err is FirebaseAuthException && err.code == 'user-disabled') {
+            _signOut();
+          }
+        });
+      }
+    });
+  }
 
-    // Start a timer that will sign out the user after 5 seconds if no interaction
+  /// Handle token mismatch by alerting the user and signing them out
+  void _handleTokenMismatch() {
+    if (_logoutTimer != null) return;
     _logoutTimer = Timer(const Duration(seconds: 5), () {
       _signOut();
     });
 
     showDialog(
       context: context,
-      barrierDismissible: false, // force user acknowledgment
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text(getTranslated(context, "Session Ended")),
-          content: Text(getTranslated(context,
-              "Your account has been logged in from another device. This session will be closed.")),
+          content: Text(
+            getTranslated(context,
+                "Your account has been logged in from another device. This session will be closed."),
+          ),
           actions: [
             TextButton(
               onPressed: () {
@@ -131,7 +145,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  // Sign the user out and navigate back to the login screen
+  /// Sign the user out and navigate back to the login screen
   Future<void> _signOut() async {
     await FirebaseAuth.instance.signOut();
     Navigator.of(context).pushAndRemoveUntil(
@@ -143,24 +157,21 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     tokenSubscription?.cancel();
+    _disabledListener?.cancel();
     _logoutTimer?.cancel();
     super.dispose();
   }
 
+  /// Check if personal info is missing and prompt update
   Future<void> checkPersonalInfo() async {
     try {
-      // Fetch user data from Firebase
       DatabaseReference userRef =
           FirebaseDatabase.instance.ref('App').child('User').child(userId);
-      print("Fetching data for user: $userId");
-
       DataSnapshot snapshot = await userRef.get();
 
       if (snapshot.exists && snapshot.value != null) {
         dataUser = Map<String, dynamic>.from(snapshot.value as Map);
-        print("Data fetched successfully: $dataUser");
 
-        // Check if personal info fields are missing or empty
         bool isFirstNameMissing = dataUser['FirstName'] == null ||
             dataUser['FirstName'].toString().isEmpty;
         bool isSecondNameMissing = dataUser['SecondName'] == null ||
@@ -180,26 +191,20 @@ class _MainScreenState extends State<MainScreen> {
             isCityMissing ||
             isStateMissing ||
             isCountryMissing) {
-          setState(() {
-            isPersonalInfoMissing = true;
-          });
+          setState(() => isPersonalInfoMissing = true);
 
-          // Show snackbar before alert dialog
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                  "Your personal information is incomplete. Please fill out the required fields."),
+                getTranslated(context,
+                    "Your personal information is incomplete. Please fill out the required fields."),
+              ),
               duration: const Duration(seconds: 3),
             ),
           );
 
-          // Show alert dialog
           showAlertDialog();
-        } else {
-          print("All personal info fields are complete.");
         }
-      } else {
-        print("No data found for the user.");
       }
     } catch (error) {
       print("Error fetching user data: $error");
@@ -207,20 +212,17 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void showAlertDialog() {
-    print("Showing alert dialog for incomplete profile.");
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("Incomplete Profile"),
-          content: const Text(
-              "Your personal information is incomplete. Please fill out the required fields."),
+          title: Text(getTranslated(context, "Incomplete Profile")),
+          content: Text(getTranslated(context,
+              "Your personal information is incomplete. Please fill out the required fields.")),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text("Cancel"),
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(getTranslated(context, "Cancel")),
             ),
             ElevatedButton(
               onPressed: () {
@@ -229,21 +231,22 @@ class _MainScreenState extends State<MainScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => PersonalInfoScreen(
-                        email: dataUser['Email'] ?? '',
-                        phoneNumber: dataUser['PhoneNumber'] ?? '',
-                        password: dataUser['Password'] ?? '',
-                        typeUser: dataUser['TypeUser'] ?? '',
-                        typeAccount: dataUser['TypeAccount'] ?? '',
-                        firstName: dataUser['FirstName'] ?? '',
-                        secondName: dataUser['SecondName'] ?? '',
-                        lastName: dataUser['LastName'] ?? '',
-                        city: dataUser['City'] ?? '',
-                        country: dataUser['Country'] ?? '',
-                        state: dataUser['State'] ?? ''),
+                      email: dataUser['Email'] ?? '',
+                      phoneNumber: dataUser['PhoneNumber'] ?? '',
+                      password: dataUser['Password'] ?? '',
+                      typeUser: dataUser['TypeUser'] ?? '',
+                      typeAccount: dataUser['TypeAccount'] ?? '',
+                      firstName: dataUser['FirstName'] ?? '',
+                      secondName: dataUser['SecondName'] ?? '',
+                      lastName: dataUser['LastName'] ?? '',
+                      city: dataUser['City'] ?? '',
+                      country: dataUser['Country'] ?? '',
+                      state: dataUser['State'] ?? '',
+                    ),
                   ),
                 );
               },
-              child: const Text("Update Info"),
+              child: Text(getTranslated(context, "Update Info")),
             ),
           ],
         );
@@ -252,9 +255,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    setState(() => _selectedIndex = index);
   }
 
   @override

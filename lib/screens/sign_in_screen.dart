@@ -231,7 +231,7 @@ class _SignInScreenState extends State<SignInScreen> {
                           }
                           if (!_authMethods.validatePassword(value)) {
                             return getTranslated(
-                                context, 'Password does not meet criteria');
+                                context, 'Password Description');
                           }
                           return null;
                         },
@@ -249,7 +249,7 @@ class _SignInScreenState extends State<SignInScreen> {
                           }
                           if (value != _passwordController.text) {
                             return getTranslated(
-                                context, 'Passwords do not match');
+                                context, 'Password Description');
                           }
                           return null;
                         },

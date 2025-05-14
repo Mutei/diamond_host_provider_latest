@@ -1,13 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart'; // Add this import
-import 'package:daimond_host_provider/constants/colors.dart';
-import 'package:daimond_host_provider/constants/styles.dart';
-import 'package:daimond_host_provider/localization/language_constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:shimmer/shimmer.dart'; // Added shimmer package
+import '../constants/colors.dart';
+import '../constants/styles.dart';
+import '../localization/language_constants.dart';
 import '../widgets/reused_all_posts_card.dart';
 import 'add_posts_screen.dart';
 
@@ -314,6 +314,7 @@ class _AllPostsScreenState extends State<AllPostsScreen> {
           currentUserTypeAccount: typeAccount,
           currentUserProfileImage: currentUserProfileImage,
           onDelete: () => _confirmDeletePost(post['postId']),
+          onEdit: () => _editPost(post),
         );
       },
     );
@@ -344,6 +345,14 @@ class _AllPostsScreenState extends State<AllPostsScreen> {
     if (confirmed == true) {
       _deletePost(postId);
     }
+  }
+
+  Future<void> _editPost(Map post) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => AddPostScreen(post: post)),
+    );
+    _fetchPosts();
   }
 
   void _deletePost(String postId) async {

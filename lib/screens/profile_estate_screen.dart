@@ -29,6 +29,7 @@ import '../utils/rooms.dart';
 import '../utils/success_dialogue.dart';
 import '../utils/failure_dialogue.dart';
 import '../widgets/chip_widget.dart';
+import '../widgets/full_screen_image_widget.dart';
 import '../widgets/reused_elevated_button.dart';
 import 'edit_estate_screen.dart';
 import 'estate_chat_screen.dart';
@@ -303,6 +304,18 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
     } catch (e) {
       print("Error fetching image URLs: $e");
     }
+  }
+
+  void _viewImage(String imageUrl) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FullScreenImageViewer(
+          imageUrls: _imageUrls, // Pass all images
+          initialIndex: _currentImageIndex, // Initial image index
+        ),
+      ),
+    );
   }
 
   Future<void> _fetchUserRatings() async {
@@ -759,25 +772,20 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                                       });
                                     },
                                     itemBuilder: (context, index) {
-                                      return Stack(
-                                        children: [
-                                          ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(15),
-                                            child: CachedNetworkImage(
-                                              imageUrl: _imageUrls[index],
-                                              cacheManager: _cacheManager,
-                                              placeholder: (context, url) =>
-                                                  Container(
-                                                      color: Colors.grey[300]),
-                                              errorWidget:
-                                                  (context, url, error) =>
-                                                      const Icon(Icons.error),
-                                              fit: BoxFit.cover,
-                                              width: double.infinity,
-                                            ),
-                                          ),
-                                        ],
+                                      return GestureDetector(
+                                        onTap: () => _viewImage(
+                                            _imageUrls[index]), // On click
+                                        child: CachedNetworkImage(
+                                          imageUrl: _imageUrls[index],
+                                          cacheManager: _cacheManager,
+                                          placeholder: (context, url) =>
+                                              Container(
+                                                  color: Colors.grey[300]),
+                                          errorWidget: (context, url, error) =>
+                                              const Icon(Icons.error),
+                                          fit: BoxFit.cover,
+                                          width: double.infinity,
+                                        ),
                                       );
                                     },
                                   ),

@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
-
 import '../localization/language_constants.dart';
 import 'firebase_services.dart';
 
@@ -94,7 +93,7 @@ class BookingServices {
     }
   }
 
-  // Function to create a booking
+  // Function to create a booking (initial status "1" = under process)
   Future<void> createBooking({
     required String estateId,
     required String nameEn,
@@ -142,7 +141,7 @@ class BookingServices {
     String hour = selectedTime.hour.toString().padLeft(2, '0');
     String minute = selectedTime.minute.toString().padLeft(2, '0');
 
-    // Create booking in Firebase
+    // Create booking in Firebase with status "1" (under process)
     DatabaseReference bookingRef =
         _dbRef.child("App").child("Booking").child("Book");
     await bookingRef.child(bookingID).set({
@@ -150,7 +149,7 @@ class BookingServices {
       "IDBook": bookingID,
       "NameEn": nameEn,
       "NameAr": nameAr,
-      "Status": "1",
+      "Status": "1", // Under process
       "IDUser": userId,
       "IDOwner": ownerId,
       "StartDate": bookingDate,
@@ -166,13 +165,14 @@ class BookingServices {
       "DateOfBooking": registrationDate,
       "Clock": "$hour:$minute",
     });
+
+    // Send notification to provider about the new booking request
     String providerId = ownerId;
     DatabaseReference providerTokenRef =
         FirebaseDatabase.instance.ref("App/User/$providerId/Token");
     DataSnapshot tokenSnapshot = await providerTokenRef.get();
     String? providerToken = tokenSnapshot.value?.toString();
 
-    // Send notification to the provider
     if (providerToken != null && providerToken.isNotEmpty) {
       await _firebaseServices.sendNotificationToProvider(
         providerToken,
@@ -180,6 +180,54 @@ class BookingServices {
         getTranslated(context, "You have a new booking request"),
       );
     }
-    // Optionally send notification to provider using FCM (if implemented)
+  }
+
+  // NEW: Function to update booking status and notify the customer
+  // newStatus: "2" for accepted, "3" for rejected
+  Future<void> updateBookingStatus({
+    required String bookingID,
+    required String newStatus,
+  }) async {
+    DatabaseReference bookingRef =
+        _dbRef.child("App").child("Booking").child("Book").child(bookingID);
+
+    // Update the booking status in the database
+    await bookingRef.update({
+      "Status": newStatus,
+    });
+
+    // Fetch the booking record to get the customer (IDUser)
+    DataSnapshot bookingSnapshot = await bookingRef.get();
+    if (!bookingSnapshot.exists) return;
+    String customerId = bookingSnapshot.child("IDUser").value?.toString() ?? "";
+
+    // Fetch the customer's FCM token from their user node
+    DatabaseReference customerRef =
+        _dbRef.child("App").child("User").child(customerId);
+    DataSnapshot tokenSnapshot = await customerRef.child("Token").get();
+    String? customerToken = tokenSnapshot.value?.toString();
+
+    // Send notification to the customer if token is available
+    if (customerToken != null && customerToken.isNotEmpty) {
+      String notificationTitle;
+      String notificationBody;
+
+      if (newStatus == "2") {
+        notificationTitle = "Booking Request Accepted";
+        notificationBody = "Your booking request has been accepted.";
+      } else if (newStatus == "3") {
+        notificationTitle = "Booking Request Rejected";
+        notificationBody = "Your booking request has been rejected.";
+      } else {
+        // No notification for any other status change
+        return;
+      }
+
+      await _firebaseServices.sendNotificationToProvider(
+        customerToken,
+        notificationTitle,
+        notificationBody,
+      );
+    }
   }
 }
