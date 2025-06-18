@@ -279,31 +279,42 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
     }
   }
 
+  /// Try to load `ImageUrls` from RTDB first; if missing, fall back to Storage.
   Future<void> _fetchImageUrls() async {
-    List<String> imageUrls = [];
     try {
-      List<String> existingImages = await fetchExistingImages();
-
-      for (var imageName in existingImages) {
-        try {
-          final storageRef = FirebaseStorage.instance
-              .ref()
-              .child("${widget.estateId}/$imageName");
-          final imageUrl = await storageRef.getDownloadURL();
-          imageUrls.add(imageUrl);
-        } catch (e) {
-          print("Error fetching URL for $imageName: $e");
-        }
+      // determine your path (you already do similar in _listenToEstateData)
+      String typePath = widget.estateType == "1"
+          ? "Hottel"
+          : (widget.estateType == "2" ? "Coffee" : "Restaurant");
+      // 1) read from Realtime Database
+      final dbRef = FirebaseDatabase.instance
+          .ref("App/Estate/$typePath/${widget.estateId}/ImageUrls");
+      final snapshot = await dbRef.get();
+      if (snapshot.exists && snapshot.value != null) {
+        // snapshot.value is List<dynamic> of URLs
+        final List<dynamic> dbList = List<dynamic>.from(snapshot.value as List);
+        setState(() => _imageUrls = dbList.cast<String>());
+        return;
       }
-
-      setState(() {
-        _imageUrls = imageUrls;
-      });
-
-      print("Fetched image URLs: $_imageUrls");
     } catch (e) {
-      print("Error fetching image URLs: $e");
+      print("Error fetching ImageUrls from DB: $e");
+      // fall through to Storage fallback
     }
+
+    // 2) fallback: list & download from Storage
+    List<String> storageUrls = [];
+    try {
+      final existing = await fetchExistingImages();
+      for (var name in existing) {
+        final url = await FirebaseStorage.instance
+            .ref("${widget.estateId}/$name")
+            .getDownloadURL();
+        storageUrls.add(url);
+      }
+    } catch (e) {
+      print("Error fetching image URLs from Storage: $e");
+    }
+    setState(() => _imageUrls = storageUrls);
   }
 
   void _viewImage(String imageUrl) {
@@ -826,6 +837,35 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                             const TextStyle(fontSize: 16, color: Colors.grey),
                       ),
                       const SizedBox(height: 16),
+                      if (widget.menuLink.isNotEmpty) ...[
+                        InkWell(
+                          onTap: () async {
+                            final url = widget.menuLink;
+                            if (await launch(url, forceWebView: false)) {
+                              await launch(url);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(getTranslated(
+                                      context, "Could not open link")),
+                                ),
+                              );
+                            }
+                          },
+                          child: AutoSizeText(
+                            getTranslated(context, "Menu Link"),
+                            style: TextStyle(
+                              color: Colors.blue,
+                              decoration: TextDecoration.underline,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            minFontSize: 12,
+                          ),
+                        ),
+                        8.kH,
+                      ],
+                      const SizedBox(height: 16),
                       Row(
                         children: [
                           const Icon(Icons.star,
@@ -1066,6 +1106,19 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                                   : getTranslated(context, "There is no music"),
                             ),
                           if (widget.type == "2" &&
+                              (estate['Lstmusic'] != null) &&
+                              estate['Lstmusic'].isNotEmpty)
+                            InfoChip(
+                              icon: Icons.music_note,
+                              label: estate['Lstmusic'] != null &&
+                                      estate['Lstmusic'].isNotEmpty
+                                  ? getTranslatedCoffeeMusicOptions(
+                                      context,
+                                      estate['Lstmusic'] ?? widget.lstMusic,
+                                    )
+                                  : getTranslated(context, "There is no music"),
+                            ),
+                          if (widget.type == "2" &&
                               (estate['Music'] != null &&
                                   estate['Music'] != "" &&
                                   estate['Music'] != "0"))
@@ -1074,7 +1127,7 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                               label: estate['Music'] == "1"
                                   ? getTranslatedCoffeeMusicOptions(
                                       context,
-                                      estate['Lstmusic'] ?? widget.lstMusic,
+                                      "Music",
                                     )
                                   : getTranslated(context, "There is no music"),
                             ),
@@ -1209,9 +1262,12 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                             //     ? room.nameEn
                             //     : room.name;
                             final displayName = room.name;
-                            final displayBio = objProvider.CheckLangValue
-                                ? room.bioEn
-                                : room.bio;
+                            // final displayBio = objProvider.CheckLangValue
+                            //     ? room.bioEn
+                            //     : room.bio;
+                            final String displayBio = languageCode == 'ar'
+                                ? (room.bio ?? widget.bioAr)
+                                : (room.bioEn ?? widget.bioEn);
 
                             return GestureDetector(
                               onTap: () {

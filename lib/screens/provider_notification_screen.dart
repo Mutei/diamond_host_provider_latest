@@ -1,11 +1,12 @@
+import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import '../backend/firebase_services.dart';
-import '../constants/colors.dart';
 import '../constants/styles.dart';
 import '../localization/language_constants.dart';
 import '../utils/rooms.dart';
+import 'edit_estate_hotel_screen.dart';
 import 'edit_estate_screen.dart';
 import 'profile_estate_screen.dart';
 
@@ -243,17 +244,31 @@ class _ProviderNotificationScreenState
             print("Estate Type: ${notification['Type']}");
             print("Estate ID: ${notification['estateId']}");
 
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => EditEstate(
-                  objEstate: notification,
-                  LstRooms: LstRooms,
-                  estateType: notification['Type'] ?? '1',
-                  estateId: notification['estateId'] ?? '',
+            if (notification['Type'] == '1') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EditEstateHotel(
+                    objEstate: notification,
+                    LstRooms: LstRooms,
+                    estateType: notification['Type'] ?? '12',
+                    estateId: notification['estateId'] ?? '',
+                  ),
                 ),
-              ),
-            );
+              );
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EditEstate(
+                    objEstate: notification,
+                    LstRooms: LstRooms,
+                    estateType: notification['Type'] ?? '1',
+                    estateId: notification['estateId'] ?? '',
+                  ),
+                ),
+              );
+            }
           }
         },
       ),

@@ -213,7 +213,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       context, "Receive booking requests from here"),
                   onTap: () {
                     Navigator.of(context).push(MaterialPageRoute(
-                        builder: (context) => RequestScreen()));
+                        builder: (context) => BookingScreen()));
                   },
                 );
               },

@@ -1,5 +1,7 @@
+// lib/screens/profile_screen_user.dart
+
 import 'dart:typed_data';
-import 'package:cached_network_image/cached_network_image.dart'; // Add this import
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:daimond_host_provider/extension/sized_box_extension.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +25,7 @@ class ProfileScreenUser extends StatefulWidget {
 }
 
 class _ProfileScreenUserState extends State<ProfileScreenUser> {
+  // Controllers
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _secondNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
@@ -31,10 +34,15 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
   final TextEditingController _countryController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
 
+  // Image + loading states
   Uint8List? _image;
   String? _profileImageUrl;
-  bool _isLoading = true; // Show shimmer until data is fetched
+  bool _isLoading = true;
 
+  // Email-verified flag
+  bool _isEmailVerified = false;
+
+  // Services
   final ProfilePictureService _profilePictureService = ProfilePictureService();
   final UserInfoService _userInfoService = UserInfoService();
 
@@ -48,63 +56,63 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
   @override
   void dispose() {
     _firstNameController.dispose();
+    _secondNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _countryController.dispose();
     _cityController.dispose();
-    _secondNameController.dispose();
-    _lastNameController.dispose();
     super.dispose();
   }
 
-  void selectImage() async {
+  Future<void> selectImage() async {
     Uint8List im = await pickImage(ImageSource.gallery);
     setState(() {
       _image = im;
-      _isLoading = true; // Start shimmer loading
+      _isLoading = true;
     });
 
-    String? userId = FirebaseAuth.instance.currentUser?.uid;
+    final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId != null) {
-      // Upload image and update the profile picture in Firebase
-      String imageUrl =
+      final imageUrl =
           await _profilePictureService.uploadImageToStorage(im, userId);
       if (imageUrl.isNotEmpty) {
         await _profilePictureService.saveImageUrlToDatabase(userId, imageUrl);
         await _profilePictureService.updateProfilePictureInPosts(
             userId, imageUrl);
-
-        print("Image uploaded to URL: $imageUrl");
-
         setState(() {
           _profileImageUrl = imageUrl;
-          _isLoading = false; // Stop shimmer loading
-        });
-      } else {
-        setState(() {
           _isLoading = false;
         });
+      } else {
+        setState(() => _isLoading = false);
       }
     } else {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
   Future<void> _loadProfileImage() async {
     final userInfo = await _userInfoService.fetchUserInfo();
-    final profileImageUrl = userInfo['ProfileImageUrl'];
-    if (profileImageUrl != null && profileImageUrl.isNotEmpty) {
-      setState(() {
-        _profileImageUrl = profileImageUrl;
-      });
+    final profileImage = userInfo['ProfileImageUrl'];
+    if (profileImage != null && profileImage.isNotEmpty) {
+      setState(() => _profileImageUrl = profileImage);
     }
   }
 
-  void afterLayoutWidgetBuild() async {
+  Future<void> afterLayoutWidgetBuild() async {
+    // Load picture & user info
     await _loadProfileImage();
-    Map<String, String?> userInfo = await _userInfoService.fetchUserInfo();
+
+    // Reload Firebase user to get latest emailVerified
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await user.reload();
+      _isEmailVerified = user.emailVerified;
+    }
+
+    // Fetch other details
+    final userInfo = await _userInfoService.fetchUserInfo();
     setState(() {
       _firstNameController.text = userInfo['FirstName'] ?? '';
       _secondNameController.text = userInfo['SecondName'] ?? '';
@@ -113,8 +121,36 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
       _phoneController.text = userInfo['PhoneNumber'] ?? '';
       _countryController.text = userInfo['Country'] ?? '';
       _cityController.text = userInfo['City'] ?? '';
-      _isLoading = false; // Stop shimmer loading
+      _isLoading = false;
     });
+  }
+
+  Future<void> _sendVerificationEmail() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && !user.emailVerified) {
+      try {
+        await user.sendEmailVerification();
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Text(getTranslated(context, 'Verification Email Sent')),
+            content: Text(getTranslated(context,
+                'Please check your inbox (and spam folder) to verify your email.')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(getTranslated(context, 'OK')),
+              ),
+            ],
+          ),
+        );
+      } catch (e) {
+        showErrorDialog(
+          context,
+          getTranslated(context, 'Failed to send verification email.'),
+        );
+      }
+    }
   }
 
   @override
@@ -124,9 +160,7 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
         centerTitle: true,
         title: Text(
           getTranslated(context, 'Profile'),
-          style: TextStyle(
-            color: kDeepPurpleColor,
-          ),
+          style: const TextStyle(color: kDeepPurpleColor),
         ),
         iconTheme: kIconTheme,
       ),
@@ -138,39 +172,37 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                // Profile picture + picker
                 Stack(
                   children: [
                     _isLoading
                         ? Shimmer.fromColors(
                             baseColor: Colors.grey.shade300,
                             highlightColor: Colors.grey.shade100,
-                            child: CircleAvatar(
+                            child: const CircleAvatar(
                               radius: 64,
                               backgroundColor: Colors.grey,
                             ),
                           )
                         : CachedNetworkImage(
                             imageUrl: _profileImageUrl ?? '',
-                            imageBuilder: (context, imageProvider) =>
-                                CircleAvatar(
+                            imageBuilder: (ctx, img) => CircleAvatar(
                               radius: 64,
-                              backgroundImage: imageProvider,
+                              backgroundImage: img,
                               backgroundColor: Colors.transparent,
                             ),
-                            placeholder: (context, url) => Shimmer.fromColors(
+                            placeholder: (ctx, url) => Shimmer.fromColors(
                               baseColor: Colors.grey.shade300,
                               highlightColor: Colors.grey.shade100,
-                              child: CircleAvatar(
+                              child: const CircleAvatar(
                                 radius: 64,
                                 backgroundColor: Colors.grey,
                               ),
                             ),
-                            errorWidget: (context, url, error) => CircleAvatar(
+                            errorWidget: (ctx, url, err) => const CircleAvatar(
                               radius: 64,
                               backgroundImage:
-                                  const AssetImage('assets/images/man.png')
-                                      as ImageProvider,
-                              backgroundColor: Colors.transparent,
+                                  AssetImage('assets/images/man.png'),
                             ),
                           ),
                     Positioned(
@@ -183,14 +215,15 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
                     ),
                   ],
                 ),
+
                 16.kH,
                 CustomButton(
                   text: getTranslated(context, 'Edit Profile'),
                   onPressed: () async {
-                    final result = await Navigator.push(
+                    final result = await Navigator.push<bool>(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => EditProfileScreen(
+                        builder: (_) => EditProfileScreen(
                           firstName: _firstNameController.text,
                           secondName: _secondNameController.text,
                           lastName: _lastNameController.text,
@@ -201,12 +234,13 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
                         ),
                       ),
                     );
-                    if (result == true) {
-                      afterLayoutWidgetBuild();
-                    }
+                    if (result == true) afterLayoutWidgetBuild();
                   },
                 ),
+
                 32.kH,
+
+                // First Name
                 _isLoading
                     ? Shimmer.fromColors(
                         baseColor: Colors.grey.shade300,
@@ -224,7 +258,10 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
                         iconData: Icons.person,
                         iconColor: kDeepPurpleColor,
                       ),
+
                 24.kH,
+
+                // Second Name
                 _isLoading
                     ? Shimmer.fromColors(
                         baseColor: Colors.grey.shade300,
@@ -242,7 +279,10 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
                         iconData: Icons.person,
                         iconColor: kDeepPurpleColor,
                       ),
+
                 24.kH,
+
+                // Last Name
                 _isLoading
                     ? Shimmer.fromColors(
                         baseColor: Colors.grey.shade300,
@@ -260,43 +300,73 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
                         iconData: Icons.person,
                         iconColor: kDeepPurpleColor,
                       ),
+
                 24.kH,
+
+                // **Email** + verification indicator
                 _isLoading
                     ? Shimmer.fromColors(
                         baseColor: Colors.grey.shade300,
                         highlightColor: Colors.grey.shade100,
                         child: ProfileInfoTextField(
                           textEditingController: _emailController,
-                          textInputType: TextInputType.text,
+                          textInputType: TextInputType.emailAddress,
                           iconData: Icons.email,
                           iconColor: kDeepPurpleColor,
                         ),
                       )
-                    : ProfileInfoTextField(
-                        textEditingController: _emailController,
-                        textInputType: TextInputType.text,
-                        iconData: Icons.email,
-                        iconColor: kDeepPurpleColor,
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: ProfileInfoTextField(
+                              textEditingController: _emailController,
+                              textInputType: TextInputType.emailAddress,
+                              iconData: Icons.email,
+                              iconColor: kDeepPurpleColor,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _isEmailVerified
+                              ? const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                )
+                              : TextButton(
+                                  onPressed: _sendVerificationEmail,
+                                  child: Text(
+                                    getTranslated(context, 'Verify Email'),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.red),
+                                  ),
+                                ),
+                        ],
                       ),
+
                 24.kH,
+
+                // Phone
                 _isLoading
                     ? Shimmer.fromColors(
                         baseColor: Colors.grey.shade300,
                         highlightColor: Colors.grey.shade100,
                         child: ProfileInfoTextField(
                           textEditingController: _phoneController,
-                          textInputType: TextInputType.text,
+                          textInputType: TextInputType.phone,
                           iconData: Icons.phone,
                           iconColor: kDeepPurpleColor,
                         ),
                       )
                     : ProfileInfoTextField(
                         textEditingController: _phoneController,
-                        textInputType: TextInputType.text,
+                        textInputType: TextInputType.phone,
                         iconData: Icons.phone,
                         iconColor: kDeepPurpleColor,
                       ),
+
                 24.kH,
+
+                // Country
                 _isLoading
                     ? Shimmer.fromColors(
                         baseColor: Colors.grey.shade300,
@@ -314,7 +384,10 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
                         iconData: Icons.location_city,
                         iconColor: kDeepPurpleColor,
                       ),
+
                 24.kH,
+
+                // City
                 _isLoading
                     ? Shimmer.fromColors(
                         baseColor: Colors.grey.shade300,
@@ -332,6 +405,7 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
                         iconData: Icons.location_city,
                         iconColor: kDeepPurpleColor,
                       ),
+
                 24.kH,
               ],
             ),

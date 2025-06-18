@@ -1,5 +1,7 @@
+// File: add_image_screen.dart
+
 import 'dart:io';
-import 'dart:typed_data';
+
 import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:daimond_host_provider/constants/styles.dart';
 import 'package:daimond_host_provider/utils/under_process_dialog.dart';
@@ -8,14 +10,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:sizer/sizer.dart';
 import 'package:reorderables/reorderables.dart';
-import '../localization/language_constants.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../localization/language_constants.dart';
 import '../backend/adding_estate_services.dart';
-import '../state_management/general_provider.dart';
 import '../utils/failure_dialogue.dart';
 import '../utils/global_methods.dart';
 import 'main_screen.dart';
@@ -31,71 +31,180 @@ class AddImage extends StatefulWidget {
   });
 
   @override
-  _State createState() => _State(IDEstate, typeEstate);
+  State<AddImage> createState() => _AddImageState();
 }
 
-class _State extends State<AddImage> {
+class _AddImageState extends State<AddImage> {
   final storageRef = FirebaseStorage.instance.ref();
-  final GlobalKey<ScaffoldState> _scaffoldKey1 = GlobalKey<ScaffoldState>();
-  final String IDEstate;
-  final String typeEstate;
-
-  _State(this.IDEstate, this.typeEstate);
-
-  final ImagePicker imgpicker = ImagePicker();
-  List<File> image = [];
+  final ImagePicker _picker = ImagePicker();
+  List<File> _images = [];
 
   Future<void> _getFromGallery() async {
-    List<XFile>? pickedFile = await imgpicker.pickMultiImage();
-    if (pickedFile != null) {
-      setState(() {
-        image.addAll(pickedFile.map((x) => File(x.path)));
-      });
+    final List<XFile>? picked = await _picker.pickMultiImage();
+    if (picked != null) {
+      setState(() => _images.addAll(picked.map((x) => File(x.path))));
     }
   }
 
-  Future<UploadTask?> uploadFile(File? file, String id) async {
-    if (file == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No file was selected')),
-      );
-      return null;
-    }
-    Reference ref = storageRef.child(IDEstate).child('/$id.jpg');
-    final metadata = SettableMetadata(
-      contentType: 'image/jpeg',
-      customMetadata: {'picked-file-path': file.path},
+  /// Simple upload (unused, but kept for reference)
+  Future<String?> _uploadFile(File file, int index) async {
+    final ref = storageRef.child(widget.IDEstate).child('$index.jpg');
+    final task = ref.putFile(
+      file,
+      SettableMetadata(contentType: 'image/jpeg'),
     );
-    return ref.putData(await file.readAsBytes(), metadata);
+    final snap = await task;
+    return await snap.ref.getDownloadURL();
+  }
+
+  /// Upload with progress reporting
+  Future<String?> _uploadFileWithProgress(
+    File file,
+    int index,
+    int totalImages,
+    ValueNotifier<double> notifier,
+  ) async {
+    final ref = storageRef.child(widget.IDEstate).child('$index.jpg');
+    final UploadTask task = ref.putFile(
+      file,
+      SettableMetadata(contentType: 'image/jpeg'),
+    );
+
+    task.snapshotEvents.listen((snapshot) {
+      if (snapshot.totalBytes != 0) {
+        final filePct = snapshot.bytesTransferred / snapshot.totalBytes!;
+        notifier.value = (index + filePct) / totalImages;
+      }
+    });
+
+    final snap = await task;
+    return await snap.ref.getDownloadURL();
+  }
+
+  Future<void> _saveImages() async {
+    if (_images.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (_) => const FailureDialog(
+          text: 'Failure',
+          text1: 'Please add at least one image before saving.',
+        ),
+      );
+      return;
+    }
+
+    // 1. Prepare progress notifier and show dialog
+    final totalImages = _images.length;
+    final progressNotifier = ValueNotifier<double>(0);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => WillPopScope(
+        onWillPop: () async => false,
+        child: AlertDialog(
+          content: ValueListenableBuilder<double>(
+            valueListenable: progressNotifier,
+            builder: (context, percent, _) {
+              final display = (percent * 100).clamp(0, 100).toStringAsFixed(0);
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${getTranslated(context, "DoNotCloseApp")}: $display%'),
+                  const SizedBox(height: 16),
+                  LinearProgressIndicator(value: percent),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    // 2. Mark estate as completed
+    final backendService = AddEstateServices();
+    await backendService.markEstateAsCompleted(
+      widget.typeEstate,
+      widget.IDEstate,
+    );
+
+    // 3. Optional SMS notification
+    try {
+      final userId = FirebaseAuth.instance.currentUser!.uid;
+      final userSnap =
+          await FirebaseDatabase.instance.ref('App/User/$userId').get();
+      if (userSnap.exists) {
+        final phone = (userSnap.value as Map)['PhoneNumber'];
+        await Dio().post(
+          'https://backend-call-center-2.onrender.com/send-sms/underprocess',
+          data: {
+            'to': phone,
+            'message':
+                'شكرا لتعاملكم مع شركة diamondhost لتطبيق رضاك سيتم معالجة طلبك في اقرب وقت ممكن ',
+            'sender': 'DiamondHost',
+          },
+        );
+      }
+    } catch (_) {}
+
+    // 4. Upload images with progress
+    final imageUrls = <String>[];
+    for (var i = 0; i < _images.length; i++) {
+      final url = await _uploadFileWithProgress(
+        _images[i],
+        i,
+        totalImages,
+        progressNotifier,
+      );
+      if (url != null) imageUrls.add(url);
+    }
+
+    // 5. Save URLs in Realtime Database
+    final estateRef = FirebaseDatabase.instance
+        .ref('App/Estate')
+        .child(widget.typeEstate)
+        .child(widget.IDEstate);
+    await estateRef.child('ImageUrls').set(imageUrls);
+
+    // 6. Close the progress dialog
+    Navigator.of(context).pop();
+
+    // 7. Show “under process” dialog
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const UnderProcessDialog(
+        text: 'Processing',
+        text1: 'Your request is under process.',
+      ),
+    );
+    await Future.delayed(const Duration(seconds: 2));
+
+    // 8. Navigate back to main
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const MainScreen()),
+      (route) => false,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final AddEstateServices backendService = AddEstateServices();
-
     return Scaffold(
-      key: _scaffoldKey1,
       appBar: AppBar(
         iconTheme: kIconTheme,
         actions: [
-          Container(
-            margin: const EdgeInsets.all(5),
-            child: InkWell(
-              child: const Icon(Icons.add),
-              onTap: _getFromGallery,
-            ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _getFromGallery,
           ),
         ],
       ),
       body: Stack(
         children: [
-          // scrollable content
           SingleChildScrollView(
             padding: const EdgeInsets.only(bottom: 100),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // title
                 Padding(
                   padding: const EdgeInsets.only(top: 30, left: 15, right: 15),
                   child: Text(
@@ -107,7 +216,6 @@ class _State extends State<AddImage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                // white rounded container with reorderable images
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 15),
                   decoration: const BoxDecoration(
@@ -116,32 +224,28 @@ class _State extends State<AddImage> {
                   ),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
-                  child: image.isEmpty
+                  child: _images.isEmpty
                       ? Center(
-                          child: Text(
-                            getTranslated(
-                                context, "Please add at least one image"),
-                          ),
+                          child: Text(getTranslated(
+                              context, "Please add at least one image")),
                         )
                       : ReorderableWrap(
                           spacing: 10,
                           runSpacing: 20,
                           onReorder: (oldIndex, newIndex) {
                             setState(() {
-                              final img = image.removeAt(oldIndex);
-                              image.insert(newIndex, img);
+                              final img = _images.removeAt(oldIndex);
+                              _images.insert(newIndex, img);
                             });
                           },
-                          children: List.generate(image.length, (index) {
-                            final file = image[index];
-                            // compute a square size for two columns
+                          children: List.generate(_images.length, (index) {
+                            final file = _images[index];
                             final double size =
                                 (MediaQuery.of(context).size.width - 80) / 2;
                             return Stack(
                               key: ValueKey(file.path),
                               children: [
-                                // image box
-                                Container(
+                                SizedBox(
                                   width: size,
                                   height: size,
                                   child: ClipRRect(
@@ -149,16 +253,17 @@ class _State extends State<AddImage> {
                                     child: Image.file(
                                       file,
                                       fit: BoxFit.cover,
+                                      width: size,
+                                      height: size,
                                     ),
                                   ),
                                 ),
-                                // delete button
                                 Positioned(
                                   top: 4,
                                   right: 4,
                                   child: GestureDetector(
                                     onTap: () =>
-                                        setState(() => image.removeAt(index)),
+                                        setState(() => _images.removeAt(index)),
                                     child: const CircleAvatar(
                                       radius: 12,
                                       backgroundColor: Colors.white,
@@ -178,80 +283,21 @@ class _State extends State<AddImage> {
               ],
             ),
           ),
-
-          // save button
           Align(
             alignment: Alignment.bottomCenter,
-            child: InkWell(
-              onTap: () async {
-                if (image.isEmpty) {
-                  showDialog(
-                    context: context,
-                    builder: (_) => const FailureDialog(
-                      text: "Failure",
-                      text1: "Please add at least one image before saving.",
-                    ),
-                  );
-                  return;
-                }
-                showCustomLoadingDialog(context);
-                await backendService.markEstateAsCompleted(
-                    typeEstate, IDEstate);
-
-                try {
-                  final String userId = FirebaseAuth.instance.currentUser!.uid;
-                  final userRef =
-                      FirebaseDatabase.instance.ref().child('App/User/$userId');
-                  final snapshot = await userRef.get();
-                  if (snapshot.exists) {
-                    final phoneNumber = (snapshot.value as Map)['PhoneNumber'];
-                    await Dio().post(
-                      'https://backend-call-center-2.onrender.com/send-sms/underprocess',
-                      data: {
-                        'to': phoneNumber,
-                        'message':
-                            'شكرا لتعاملكم مع شركة diamondhost لتطبيق رضاك سيتم معالجة طلبك في اقرب وقت ممكن ',
-                        'sender': 'DiamondHost',
-                      },
-                    );
-                  }
-                } catch (e) {
-                  debugPrint("SMS sending failed: $e");
-                }
-
-                // upload each file
-                for (var i = 0; i < image.length; i++) {
-                  await uploadFile(image[i], i.toString());
-                }
-                Navigator.of(context).pop(); // hide loading
-
-                // show under process dialog
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (_) => const UnderProcessDialog(
-                    text: 'Processing',
-                    text1: 'Your request is under process.',
-                  ),
-                );
-                await Future.delayed(const Duration(seconds: 2));
-                Navigator.of(context).pop(); // hide under process
-
-                // go back to main screen
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const MainScreen()),
-                  (route) => false,
-                );
-              },
-              child: Container(
-                width: 150.w,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+              child: SizedBox(
+                width: double.infinity,
                 height: 6.h,
-                margin: const EdgeInsets.only(right: 40, left: 40, bottom: 20),
-                decoration: BoxDecoration(
-                  color: kPurpleColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kPurpleColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _saveImages,
                   child: Text(
                     getTranslated(context, "Save"),
                     style: const TextStyle(color: Colors.white),

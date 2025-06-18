@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:daimond_host_provider/localization/language_constants.dart';
 import 'package:daimond_host_provider/screens/personal_info_screen.dart';
 import 'package:daimond_host_provider/screens/request_screen.dart';
+import 'package:daimond_host_provider/screens/edit_estate_screen.dart';
+import 'package:daimond_host_provider/screens/edit_estate_hotel_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -41,7 +43,7 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> _screens = [
     const MainScreenContent(),
-    RequestScreen(),
+    BookingScreen(),
     const AllPostsScreen(),
   ];
 
@@ -49,6 +51,7 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     checkPersonalInfo();
+    checkEstateBranchInfo(); // ← New: check branches
     FirebaseServices().initMessage();
     _initializeTokenListener();
     _initializeDisabledListener();
@@ -83,6 +86,83 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  /// New: Check if any of user's estates have missing branches
+  Future<void> checkEstateBranchInfo() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final estateTypes = ['Hottel', 'Restaurant', 'Coffee'];
+
+      for (String type in estateTypes) {
+        final estateRef = FirebaseDatabase.instance.ref("App/Estate/$type");
+        final snapshot = await estateRef.get();
+
+        if (snapshot.exists && snapshot.value != null) {
+          final estates = Map<String, dynamic>.from(snapshot.value as Map);
+          for (var entry in estates.entries) {
+            final estateId = entry.key;
+            final estateData = Map<String, dynamic>.from(entry.value as Map);
+            if (estateData['IDUser'] == uid) {
+              final branchEn = estateData['BranchEn'] ?? '';
+              final branchAr = estateData['BranchAr'] ?? '';
+              final nameEn = estateData['NameEn'] ?? 'this estate';
+              final nameAr = estateData['NameAr'] ?? 'this estate';
+              final String languageCode =
+                  Localizations.localeOf(context).languageCode;
+              final String displayName = languageCode == 'ar' ? nameAr : nameEn;
+
+              if (branchEn.toString().isEmpty || branchAr.toString().isEmpty) {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title:
+                        Text(getTranslated(context, "Incomplete Branch Info")),
+                    content: Text(
+                      "${getTranslated(context, "Please fill out the branches in English and Arabic for")} ($displayName)",
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text(getTranslated(context, "Cancel")),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => type == 'Hottel'
+                                  ? EditEstateHotel(
+                                      objEstate: estateData,
+                                      LstRooms: [],
+                                      estateType: '1',
+                                      estateId: estateId,
+                                    )
+                                  : EditEstate(
+                                      objEstate: estateData,
+                                      LstRooms: [],
+                                      estateType:
+                                          type == 'Restaurant' ? '3' : '2',
+                                      estateId: estateId,
+                                    ),
+                            ),
+                          );
+                        },
+                        child: Text(getTranslated(context, "Update Info")),
+                      ),
+                    ],
+                  ),
+                );
+                return; // Only show once
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print("Error checking estate branch info: $e");
+    }
+  }
+
   /// Initialize token listener to enforce single-device login
   Future<void> _initializeTokenListener() async {
     currentDeviceToken = await FirebaseMessaging.instance.getToken();
@@ -102,7 +182,6 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _initializeDisabledListener() async {
     _disabledListener = FirebaseAuth.instance.idTokenChanges().listen((user) {
       if (user != null) {
-        // Force token refresh; will throw if user is disabled
         user.getIdToken(true).catchError((err) {
           if (err is FirebaseAuthException && err.code == 'user-disabled') {
             _signOut();

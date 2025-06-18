@@ -76,6 +76,8 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   TextEditingController facilityPriceController = TextEditingController();
   List<Additional> facilityList = [];
   TextEditingController enNameController = TextEditingController();
+  TextEditingController enBranchController = TextEditingController();
+  TextEditingController arBranchController = TextEditingController();
   TextEditingController enBioController = TextEditingController();
   TextEditingController taxNumberController = TextEditingController();
   TextEditingController estateNumberController = TextEditingController();
@@ -250,6 +252,8 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   bool _areRequiredFieldsFilled() {
     bool basicFieldsFilled = nameController.text.isNotEmpty &&
         enNameController.text.isNotEmpty &&
+        enBranchController.text.isNotEmpty &&
+        arBranchController.text.isNotEmpty &&
         (countryValue != null && countryValue!.isNotEmpty) &&
         (stateValue != null && stateValue!.isNotEmpty) &&
         (cityValue != null && cityValue!.isNotEmpty);
@@ -363,6 +367,38 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                       color: kDeepPurpleColor,
                     ),
                     control: enBioController,
+                    isObsecured: false,
+                    validate: true,
+                    textInputType: TextInputType.text,
+                  ),
+                  40.kH,
+                  const ReusedProviderEstateContainer(
+                    hint: "Branch in English",
+                  ),
+                  TextFormFieldStyle(
+                    context: context,
+                    hint: "Branch name (Required)",
+                    icon: Icon(
+                      Icons.location_on,
+                      color: kDeepPurpleColor,
+                    ),
+                    control: enBranchController,
+                    isObsecured: false,
+                    validate: true,
+                    textInputType: TextInputType.text,
+                  ),
+                  40.kH,
+                  const ReusedProviderEstateContainer(
+                    hint: "Branch in Arabic",
+                  ),
+                  TextFormFieldStyle(
+                    context: context,
+                    hint: "Branch name (Required)",
+                    icon: Icon(
+                      Icons.location_on,
+                      color: kDeepPurpleColor,
+                    ),
+                    control: arBranchController,
                     isObsecured: false,
                     validate: true,
                     textInputType: TextInputType.text,
@@ -787,7 +823,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                   getTranslated(context, "Service Price"),
                               border: OutlineInputBorder(),
                             ),
-                            keyboardType: TextInputType.text,
+                            keyboardType: TextInputType.number,
                           ),
                           const SizedBox(height: 10),
                           ElevatedButton(
@@ -846,324 +882,324 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                       ),
                     ),
                   ),
-                  //
-                  // Visibility(
-                  //   visible: widget.userType == "3" ? true : false,
-                  //   child: Row(
-                  //     children: [
-                  //       const ReusedProviderEstateContainer(
-                  //         hint: "Type of Restaurant",
-                  //       ),
-                  //       Container(
-                  //         margin: const EdgeInsets.only(bottom: 20, top: 10),
-                  //         child: Text(
-                  //           getTranslated(context, "(Select at least 1)"),
-                  //           style: const TextStyle(
-                  //             fontWeight: FontWeight.bold,
-                  //             fontSize: 10,
-                  //             color: Colors.red,
-                  //           ),
-                  //         ),
-                  //       )
-                  //     ],
-                  //   ),
-                  // ),
-                  // Container(
-                  //   margin: const EdgeInsetsDirectional.only(
-                  //     start: 30,
-                  //   ),
-                  //   padding: (const EdgeInsets.only(right: 25)),
-                  //   child: RestaurantTypeVisibility(
-                  //     isVisible: widget.userType == "3",
-                  //     onCheckboxChanged: _onRestaurantTypeCheckboxChanged,
-                  //     selectedRestaurantTypes:
-                  //         selectedRestaurantTypes, // Pass the selected restaurant types list
-                  //   ),
-                  // ),
-                  // 15.kH,
-                  // Visibility(
-                  //   visible: widget.userType == "3" || widget.userType == "2"
-                  //       ? true
-                  //       : false,
-                  //   child: Row(
-                  //     children: [
-                  //       const ReusedProviderEstateContainer(
-                  //         hint: "Entry allowed",
-                  //       ),
-                  //       Container(
-                  //         margin: const EdgeInsets.only(bottom: 20, top: 10),
-                  //         child: Text(
-                  //           getTranslated(context, "(Select at least 1)"),
-                  //           style: const TextStyle(
-                  //             fontWeight: FontWeight.bold,
-                  //             fontSize: 10,
-                  //             color: Colors.red,
-                  //           ),
-                  //         ),
-                  //       )
-                  //     ],
-                  //   ),
-                  // ),
-                  // Container(
-                  //   margin: const EdgeInsetsDirectional.only(
-                  //     start: 50,
-                  //   ),
-                  //   child: EntryVisibility(
-                  //     isVisible:
-                  //         widget.userType == "3" || widget.userType == "2",
-                  //     onCheckboxChanged: _onCheckboxChanged,
-                  //     selectedEntries:
-                  //         selectedEntries, // Pass the list of selected entries
-                  //   ),
-                  // ),
-                  // Visibility(
-                  //   visible: widget.userType == "3" || widget.userType == "2"
-                  //       ? true
-                  //       : false,
-                  //   child: Row(
-                  //     children: [
-                  //       const ReusedProviderEstateContainer(
-                  //         hint: 'Sessions type',
-                  //       ),
-                  //       Container(
-                  //         margin: const EdgeInsets.only(bottom: 20, top: 10),
-                  //         child: Text(
-                  //           getTranslated(context, "(Select at least 1)"),
-                  //           style: const TextStyle(
-                  //             fontWeight: FontWeight.bold,
-                  //             fontSize: 10,
-                  //             color: Colors.red,
-                  //           ),
-                  //         ),
-                  //       )
-                  //     ],
-                  //   ),
-                  // ),
-                  // Container(
-                  //   margin: const EdgeInsetsDirectional.only(
-                  //     start: 50,
-                  //   ),
-                  //   child: SessionsVisibility(
-                  //     isVisible:
-                  //         widget.userType == "3" || widget.userType == "2",
-                  //     onCheckboxChanged: _onSessionCheckboxChanged,
-                  //     selectedSessions:
-                  //         selectedSessions, // Pass the selected sessions list
-                  //   ),
-                  // ),
-                  // 40.kH,
-                  // Visibility(
-                  //   visible: widget.userType == "3" || widget.userType == "2"
-                  //       ? true
-                  //       : false,
-                  //   child: const ReusedProviderEstateContainer(
-                  //     hint: "Additionals",
-                  //   ),
-                  // ),
-                  // Container(
-                  //   margin: const EdgeInsetsDirectional.only(
-                  //     start: 50,
-                  //   ),
-                  //   child: AdditionalsRestaurantCoffee(
-                  //     isVisible:
-                  //         widget.userType == "3" || widget.userType == "2",
-                  //     onCheckboxChanged: _onAdditionalCheckboxChanged,
-                  //     selectedAdditionals:
-                  //         selectedAdditionals, // Pass the selected additionals list
-                  //   ),
-                  // ),
-                  // 40.kH,
-                  // Container(
-                  //   margin: const EdgeInsetsDirectional.only(
-                  //     start: 50,
-                  //   ),
-                  //   child: MusicVisibility(
-                  //     isVisible:
-                  //         widget.userType == "3" || widget.userType == "2",
-                  //     checkMusic: checkMusic,
-                  //     haveMusic: haveMusic,
-                  //     haveSinger: haveSinger,
-                  //     haveDJ: haveDJ,
-                  //     haveOud: haveOud,
-                  //     onMusicChanged: (value) {
-                  //       setState(() {
-                  //         checkMusic = value;
-                  //         if (!checkMusic) {
-                  //           haveMusic = false;
-                  //           haveSinger = false;
-                  //           haveDJ = false;
-                  //           haveOud = false;
-                  //         } else if (widget.userType == "2") {
-                  //           haveMusic = true;
-                  //         }
-                  //       });
-                  //     },
-                  //     onSingerChanged: (value) {
-                  //       setState(() {
-                  //         haveSinger = value;
-                  //         if (value) {
-                  //           listMusic.add("singer");
-                  //         } else {
-                  //           listMusic.remove("singer");
-                  //         }
-                  //       });
-                  //     },
-                  //     onDJChanged: (value) {
-                  //       setState(() {
-                  //         haveDJ = value;
-                  //         if (value) {
-                  //           listMusic.add("DJ");
-                  //         } else {
-                  //           listMusic.remove("DJ");
-                  //         }
-                  //       });
-                  //     },
-                  //     onOudChanged: (value) {
-                  //       setState(() {
-                  //         haveOud = value;
-                  //         if (value) {
-                  //           listMusic.add("Oud");
-                  //         } else {
-                  //           listMusic.remove("Oud");
-                  //         }
-                  //       });
-                  //     },
-                  //   ),
-                  // ),
-                  // const ReusedProviderEstateContainer(
-                  //   hint: "Valet Options",
-                  // ),
-                  // Container(
-                  //   margin: const EdgeInsetsDirectional.only(start: 50),
-                  //   child: Column(
-                  //     children: [
-                  //       CheckboxListTile(
-                  //         title:
-                  //             Text(getTranslated(context, "Is there valet?")),
-                  //         value: hasValet,
-                  //         onChanged: (bool? value) {
-                  //           setState(() {
-                  //             hasValet = value ?? false;
-                  //             valetWithFees = false; // Reset valet fees option
-                  //           });
-                  //         },
-                  //         activeColor: kPurpleColor,
-                  //         controlAffinity: ListTileControlAffinity.leading,
-                  //       ),
-                  //       Visibility(
-                  //         visible: hasValet,
-                  //         child: Column(
-                  //           crossAxisAlignment: CrossAxisAlignment.start,
-                  //           children: [
-                  //             CheckboxListTile(
-                  //               title: Text(
-                  //                   getTranslated(context, "Valet with fees")),
-                  //               value: valetWithFees,
-                  //               onChanged: (bool? value) {
-                  //                 setState(() {
-                  //                   valetWithFees = value ?? false;
-                  //                 });
-                  //               },
-                  //               activeColor: kDeepPurpleColor,
-                  //               controlAffinity:
-                  //                   ListTileControlAffinity.leading,
-                  //             ),
-                  //             Visibility(
-                  //               visible: !valetWithFees,
-                  //               child: Padding(
-                  //                 padding: const EdgeInsetsDirectional.only(
-                  //                     start: 16.0),
-                  //                 child: Text(
-                  //                   getTranslated(context,
-                  //                       "If valet with fees is not selected, valet service is free."),
-                  //                   style: TextStyle(
-                  //                     color: Colors.red,
-                  //                     fontSize: 12.sp,
-                  //                   ),
-                  //                 ),
-                  //               ),
-                  //             ),
-                  //           ],
-                  //         ),
-                  //       ),
-                  //     ],
-                  //   ),
-                  // ),
-                  // Visibility(
-                  //   visible: widget.userType == "2" || widget.userType == "3",
-                  //   child: const ReusedProviderEstateContainer(
-                  //     hint: "Kids Area Options",
-                  //   ),
-                  // ),
-                  // Visibility(
-                  //   visible: widget.userType == "2" || widget.userType == "3",
-                  //   child: Container(
-                  //     margin: const EdgeInsetsDirectional.only(start: 50),
-                  //     child: Column(
-                  //       children: [
-                  //         CheckboxListTile(
-                  //           title: Text(
-                  //               getTranslated(context, "Is there Kids Area?")),
-                  //           value: hasKidsArea,
-                  //           onChanged: (bool? value) {
-                  //             setState(() {
-                  //               hasKidsArea = value ?? false;
-                  //             });
-                  //           },
-                  //           activeColor: kDeepPurpleColor,
-                  //           controlAffinity: ListTileControlAffinity.leading,
-                  //         ),
-                  //       ],
-                  //     ),
-                  //   ),
-                  // ),
-                  // const ReusedProviderEstateContainer(
-                  //   hint: "Smoking Area?",
-                  // ),
-                  // Visibility(
-                  //   visible: widget.userType == "2" || widget.userType == "3",
-                  //   child: Container(
-                  //     margin: const EdgeInsetsDirectional.only(start: 50),
-                  //     child: Column(
-                  //       children: [
-                  //         CheckboxListTile(
-                  //           title: Text(
-                  //               getTranslated(context, "Is Smoking Allowed?")),
-                  //           value: checkIsSmokingAllowed,
-                  //           onChanged: (bool? value) {
-                  //             setState(() {
-                  //               checkIsSmokingAllowed = value ?? false;
-                  //             });
-                  //           },
-                  //           activeColor: kDeepPurpleColor,
-                  //           controlAffinity: ListTileControlAffinity.leading,
-                  //         ),
-                  //       ],
-                  //     ),
-                  //   ),
-                  // ),
-                  // Visibility(
-                  //   visible: widget.userType == "1",
-                  //   child: Container(
-                  //     margin: const EdgeInsetsDirectional.only(start: 50),
-                  //     child: Column(
-                  //       children: [
-                  //         CheckboxListTile(
-                  //           title: Text(getTranslated(
-                  //               context, "Is Smoking Allowed in some rooms?")),
-                  //           value: checkIsSmokingAllowed,
-                  //           onChanged: (bool? value) {
-                  //             setState(() {
-                  //               checkIsSmokingAllowed = value ?? false;
-                  //             });
-                  //           },
-                  //           activeColor: kDeepPurpleColor,
-                  //           controlAffinity: ListTileControlAffinity.leading,
-                  //         ),
-                  //       ],
-                  //     ),
-                  //   ),
-                  // ),
+
+                  Visibility(
+                    visible: widget.userType == "3" ? true : false,
+                    child: Row(
+                      children: [
+                        const ReusedProviderEstateContainer(
+                          hint: "Type of Restaurant",
+                        ),
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 20, top: 10),
+                          child: Text(
+                            getTranslated(context, "(Select at least 1)"),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                              color: Colors.red,
+                            ),
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsetsDirectional.only(
+                      start: 30,
+                    ),
+                    padding: (const EdgeInsets.only(right: 25)),
+                    child: RestaurantTypeVisibility(
+                      isVisible: widget.userType == "3",
+                      onCheckboxChanged: _onRestaurantTypeCheckboxChanged,
+                      selectedRestaurantTypes:
+                          selectedRestaurantTypes, // Pass the selected restaurant types list
+                    ),
+                  ),
+                  15.kH,
+                  Visibility(
+                    visible: widget.userType == "3" || widget.userType == "2"
+                        ? true
+                        : false,
+                    child: Row(
+                      children: [
+                        const ReusedProviderEstateContainer(
+                          hint: "Entry allowed",
+                        ),
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 20, top: 10),
+                          child: Text(
+                            getTranslated(context, "(Select at least 1)"),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                              color: Colors.red,
+                            ),
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsetsDirectional.only(
+                      start: 50,
+                    ),
+                    child: EntryVisibility(
+                      isVisible:
+                          widget.userType == "3" || widget.userType == "2",
+                      onCheckboxChanged: _onCheckboxChanged,
+                      selectedEntries:
+                          selectedEntries, // Pass the list of selected entries
+                    ),
+                  ),
+                  Visibility(
+                    visible: widget.userType == "3" || widget.userType == "2"
+                        ? true
+                        : false,
+                    child: Row(
+                      children: [
+                        const ReusedProviderEstateContainer(
+                          hint: 'Sessions type',
+                        ),
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 20, top: 10),
+                          child: Text(
+                            getTranslated(context, "(Select at least 1)"),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                              color: Colors.red,
+                            ),
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsetsDirectional.only(
+                      start: 50,
+                    ),
+                    child: SessionsVisibility(
+                      isVisible:
+                          widget.userType == "3" || widget.userType == "2",
+                      onCheckboxChanged: _onSessionCheckboxChanged,
+                      selectedSessions:
+                          selectedSessions, // Pass the selected sessions list
+                    ),
+                  ),
+                  40.kH,
+                  Visibility(
+                    visible: widget.userType == "3" || widget.userType == "2"
+                        ? true
+                        : false,
+                    child: const ReusedProviderEstateContainer(
+                      hint: "Additionals",
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsetsDirectional.only(
+                      start: 50,
+                    ),
+                    child: AdditionalsRestaurantCoffee(
+                      isVisible:
+                          widget.userType == "3" || widget.userType == "2",
+                      onCheckboxChanged: _onAdditionalCheckboxChanged,
+                      selectedAdditionals:
+                          selectedAdditionals, // Pass the selected additionals list
+                    ),
+                  ),
+                  40.kH,
+                  Container(
+                    margin: const EdgeInsetsDirectional.only(
+                      start: 50,
+                    ),
+                    child: MusicVisibility(
+                      isVisible:
+                          widget.userType == "3" || widget.userType == "2",
+                      checkMusic: checkMusic,
+                      haveMusic: haveMusic,
+                      haveSinger: haveSinger,
+                      haveDJ: haveDJ,
+                      haveOud: haveOud,
+                      onMusicChanged: (value) {
+                        setState(() {
+                          checkMusic = value;
+                          if (!checkMusic) {
+                            haveMusic = false;
+                            haveSinger = false;
+                            haveDJ = false;
+                            haveOud = false;
+                          } else if (widget.userType == "2") {
+                            haveMusic = true;
+                          }
+                        });
+                      },
+                      onSingerChanged: (value) {
+                        setState(() {
+                          haveSinger = value;
+                          if (value) {
+                            listMusic.add("singer");
+                          } else {
+                            listMusic.remove("singer");
+                          }
+                        });
+                      },
+                      onDJChanged: (value) {
+                        setState(() {
+                          haveDJ = value;
+                          if (value) {
+                            listMusic.add("DJ");
+                          } else {
+                            listMusic.remove("DJ");
+                          }
+                        });
+                      },
+                      onOudChanged: (value) {
+                        setState(() {
+                          haveOud = value;
+                          if (value) {
+                            listMusic.add("Oud");
+                          } else {
+                            listMusic.remove("Oud");
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                  const ReusedProviderEstateContainer(
+                    hint: "Valet Options",
+                  ),
+                  Container(
+                    margin: const EdgeInsetsDirectional.only(start: 50),
+                    child: Column(
+                      children: [
+                        CheckboxListTile(
+                          title:
+                              Text(getTranslated(context, "Is there valet?")),
+                          value: hasValet,
+                          onChanged: (bool? value) {
+                            setState(() {
+                              hasValet = value ?? false;
+                              valetWithFees = false; // Reset valet fees option
+                            });
+                          },
+                          activeColor: kPurpleColor,
+                          controlAffinity: ListTileControlAffinity.leading,
+                        ),
+                        Visibility(
+                          visible: hasValet,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CheckboxListTile(
+                                title: Text(
+                                    getTranslated(context, "Valet with fees")),
+                                value: valetWithFees,
+                                onChanged: (bool? value) {
+                                  setState(() {
+                                    valetWithFees = value ?? false;
+                                  });
+                                },
+                                activeColor: kDeepPurpleColor,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                              ),
+                              Visibility(
+                                visible: !valetWithFees,
+                                child: Padding(
+                                  padding: const EdgeInsetsDirectional.only(
+                                      start: 16.0),
+                                  child: Text(
+                                    getTranslated(context,
+                                        "If valet with fees is not selected, valet service is free."),
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 12.sp,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Visibility(
+                    visible: widget.userType == "2" || widget.userType == "3",
+                    child: const ReusedProviderEstateContainer(
+                      hint: "Kids Area Options",
+                    ),
+                  ),
+                  Visibility(
+                    visible: widget.userType == "2" || widget.userType == "3",
+                    child: Container(
+                      margin: const EdgeInsetsDirectional.only(start: 50),
+                      child: Column(
+                        children: [
+                          CheckboxListTile(
+                            title: Text(
+                                getTranslated(context, "Is there Kids Area?")),
+                            value: hasKidsArea,
+                            onChanged: (bool? value) {
+                              setState(() {
+                                hasKidsArea = value ?? false;
+                              });
+                            },
+                            activeColor: kDeepPurpleColor,
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const ReusedProviderEstateContainer(
+                    hint: "Smoking Area?",
+                  ),
+                  Visibility(
+                    visible: widget.userType == "2" || widget.userType == "3",
+                    child: Container(
+                      margin: const EdgeInsetsDirectional.only(start: 50),
+                      child: Column(
+                        children: [
+                          CheckboxListTile(
+                            title: Text(
+                                getTranslated(context, "Is Smoking Allowed?")),
+                            value: checkIsSmokingAllowed,
+                            onChanged: (bool? value) {
+                              setState(() {
+                                checkIsSmokingAllowed = value ?? false;
+                              });
+                            },
+                            activeColor: kDeepPurpleColor,
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Visibility(
+                    visible: widget.userType == "1",
+                    child: Container(
+                      margin: const EdgeInsetsDirectional.only(start: 50),
+                      child: Column(
+                        children: [
+                          CheckboxListTile(
+                            title: Text(getTranslated(
+                                context, "Is Smoking Allowed in some rooms?")),
+                            value: checkIsSmokingAllowed,
+                            onChanged: (bool? value) {
+                              setState(() {
+                                checkIsSmokingAllowed = value ?? false;
+                              });
+                            },
+                            activeColor: kDeepPurpleColor,
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   Visibility(
                     visible: widget.userType == "1", // Show only for Hotels
                     child: const ReusedProviderEstateContainer(
@@ -1523,6 +1559,8 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                               idEstate: idEstate.toString(),
                               nameAr: nameController.text,
                               nameEn: enNameController.text,
+                              branchEn: enBranchController.text,
+                              branchAr: arBranchController.text,
                               bioAr: bioController.text,
                               bioEn: enBioController.text,
                               country: countryValue ?? "",

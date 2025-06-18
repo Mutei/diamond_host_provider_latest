@@ -21,12 +21,12 @@ import '../widgets/booking_list_widget.dart';
 import '../widgets/list_add_widget.dart';
 import '../widgets/list_room_widget.dart';
 
-class RequestScreen extends StatefulWidget {
+class BookingScreen extends StatefulWidget {
   @override
-  _RequestScreenState createState() => _RequestScreenState();
+  _BookingScreenState createState() => _BookingScreenState();
 }
 
-class _RequestScreenState extends State<RequestScreen>
+class _BookingScreenState extends State<BookingScreen>
     with SingleTickerProviderStateMixin {
   final FirebaseServices _firebaseServices = FirebaseServices();
   late TabController _tabController;

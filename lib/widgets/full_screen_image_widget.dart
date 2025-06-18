@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:photo_view/photo_view_gallery.dart';
+import 'package:photo_view/photo_view.dart';
 import 'package:shimmer/shimmer.dart';
 
 class FullScreenImageViewer extends StatefulWidget {
@@ -21,13 +23,7 @@ class FullScreenImageViewer extends StatefulWidget {
 
 class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
   late final PageController _pageController;
-  late final TransformationController _transformationController;
-
-  // zoom state
-  double _scale = 1.0;
-  static const double _minScale = 1.0;
-  static const double _maxScale = 3.0;
-  static const double _step = 0.5;
+  int _currentIndex = 0;
 
   // swipe-to-dismiss state
   Offset _dragOffset = Offset.zero;
@@ -39,24 +35,23 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
     Config(
       'fullScreenCache',
       stalePeriod: const Duration(days: 7),
-      maxNrOfCacheObjects: 200, // keep plenty of recent images
+      maxNrOfCacheObjects: 200,
     ),
   );
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: widget.initialIndex);
-    _transformationController = TransformationController();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: _currentIndex);
 
     // 1) Prefetch to disk, 2) then precache into memory at screen resolution
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final screenWidthPx = (MediaQuery.of(context).size.width *
-          MediaQuery.of(context).devicePixelRatio)
+              MediaQuery.of(context).devicePixelRatio)
           .toInt();
       for (var url in widget.imageUrls) {
         _cacheManager.getSingleFile(url).then((file) {
-          // once on disk, load into memory cache
           precacheImage(
             ResizeImage(FileImage(file), width: screenWidthPx),
             context,
@@ -68,57 +63,28 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
     });
   }
 
-  void _zoomToCenter(double targetScale) {
-    final size = MediaQuery.of(context).size;
-    final dx = (size.width * (1 - targetScale)) / 2;
-    final dy = (size.height * (1 - targetScale)) / 2;
-
-    setState(() {
-      _scale = targetScale;
-      _transformationController.value = Matrix4.identity()
-        ..translate(dx, dy)
-        ..scale(targetScale);
-    });
-  }
-
-  void _zoomIn() => _zoomToCenter((_scale + _step).clamp(_minScale, _maxScale));
-  void _zoomOut() =>
-      _zoomToCenter((_scale - _step).clamp(_minScale, _maxScale));
-
-  void _onDoubleTap() {
-    if (_scale == _minScale) {
-      _zoomToCenter(_maxScale);
-    } else {
-      _zoomToCenter(_minScale);
-    }
-  }
-
   @override
   void dispose() {
     _pageController.dispose();
-    _transformationController.dispose();
     super.dispose();
+  }
+
+  void _onPageChanged(int index) {
+    setState(() => _currentIndex = index);
   }
 
   @override
   Widget build(BuildContext context) {
-    // calculate memCacheWidth once per build
-    final memCacheWidth = (MediaQuery.of(context).size.width *
-        MediaQuery.of(context).devicePixelRatio)
-        .toInt();
-
     return Scaffold(
+      // dim background based on drag
       backgroundColor: Colors.black.withOpacity(_backgroundOpacity),
       body: GestureDetector(
         onVerticalDragUpdate: (details) {
-          if (_scale == _minScale) {
-            setState(() {
-              _dragOffset += details.delta;
-              _backgroundOpacity =
-                  (1 - (_dragOffset.dy.abs() / _maxDragDistance))
-                      .clamp(0.0, 1.0);
-            });
-          }
+          setState(() {
+            _dragOffset += details.delta;
+            _backgroundOpacity =
+                (1 - (_dragOffset.dy.abs() / _maxDragDistance)).clamp(0.0, 1.0);
+          });
         },
         onVerticalDragEnd: (_) {
           if (_dragOffset.dy.abs() > _dismissThreshold) {
@@ -134,63 +100,85 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
           offset: _dragOffset,
           child: Stack(
             children: [
-              GestureDetector(
-                onDoubleTap: _onDoubleTap,
-                child: Center(
-                  child: PageView.builder(
-                    controller: _pageController,
-                    itemCount: widget.imageUrls.length,
-                    itemBuilder: (context, index) {
-                      return InteractiveViewer(
-                        transformationController: _transformationController,
-                        minScale: _minScale,
-                        maxScale: _maxScale,
-                        child: CachedNetworkImage(
-                          imageUrl: widget.imageUrls[index],
-                          cacheManager: _cacheManager,
-                          memCacheWidth: memCacheWidth,
-                          fit: BoxFit.contain,
-                          placeholder: (_, __) => Shimmer.fromColors(
-                            baseColor: Colors.grey.shade800,
-                            highlightColor: Colors.grey.shade600,
-                            child: Container(color: Colors.black),
-                          ),
-                          errorWidget: (_, __, ___) => const Icon(
-                            Icons.error,
-                            color: Colors.white,
-                            size: 48,
-                          ),
-                        ),
-                      );
-                    },
+              // PhotoView gallery
+              PhotoViewGallery.builder(
+                pageController: _pageController,
+                onPageChanged: _onPageChanged,
+                itemCount: widget.imageUrls.length,
+                builder: (ctx, index) {
+                  final url = widget.imageUrls[index];
+                  return PhotoViewGalleryPageOptions(
+                    imageProvider: CachedNetworkImageProvider(url,
+                        cacheManager: _cacheManager),
+                    minScale: PhotoViewComputedScale.contained,
+                    maxScale: PhotoViewComputedScale.covered * 3,
+                    initialScale: PhotoViewComputedScale.contained,
+                    heroAttributes: PhotoViewHeroAttributes(tag: url),
+                    errorBuilder: (context, error, stack) => Center(
+                      child: Icon(Icons.error, color: Colors.white, size: 48),
+                    ),
+                  );
+                },
+                loadingBuilder: (context, event) => Center(
+                  child: Shimmer.fromColors(
+                    baseColor: Colors.grey.shade800,
+                    highlightColor: Colors.grey.shade600,
+                    child: Container(
+                      width: 60,
+                      height: 60,
+                      color: Colors.black,
+                    ),
                   ),
                 ),
+                backgroundDecoration: BoxDecoration(
+                    color: Colors.black.withOpacity(_backgroundOpacity)),
               ),
 
-              // zoom buttons
+              // top bar with close button and page indicator
               Positioned(
-                bottom: 24,
-                right: 16,
-                child: Column(
+                top: MediaQuery.of(context).padding.top,
+                left: 0,
+                right: 0,
+                child: Row(
                   children: [
-                    FloatingActionButton(
-                      heroTag: 'zoom_in',
-                      mini: true,
-                      backgroundColor: Colors.black54,
-                      onPressed: _zoomIn,
-                      child: const Icon(Icons.add, color: Colors.white),
+                    IconButton(
+                      icon: Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
-                    const SizedBox(height: 12),
-                    FloatingActionButton(
-                      heroTag: 'zoom_out',
-                      mini: true,
-                      backgroundColor: Colors.black54,
-                      onPressed: _zoomOut,
-                      child: const Icon(Icons.remove, color: Colors.white),
+                    Spacer(),
+                    Text(
+                      '${_currentIndex + 1}/${widget.imageUrls.length}',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
                     ),
+                    SizedBox(width: 16),
                   ],
                 ),
               ),
+
+              // bottom dots indicator
+              if (widget.imageUrls.length > 1)
+                Positioned(
+                  bottom: 24,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      widget.imageUrls.length,
+                      (i) => Container(
+                        margin: EdgeInsets.symmetric(horizontal: 4),
+                        width: _currentIndex == i ? 12 : 8,
+                        height: _currentIndex == i ? 12 : 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _currentIndex == i
+                              ? Colors.white
+                              : Colors.white54,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

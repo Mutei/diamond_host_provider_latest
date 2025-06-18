@@ -25,7 +25,7 @@ class _OTPLoginScreenState extends State<OTPLoginScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _databaseRef = FirebaseDatabase.instance.ref();
 
-  bool _isLoading = false; // To manage loading state
+  bool _isLoading = false;
 
   void _verifyOTP() async {
     String smsCode = _otpController.text.trim();
@@ -41,9 +41,7 @@ class _OTPLoginScreenState extends State<OTPLoginScreen> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final credential = PhoneAuthProvider.credential(
@@ -51,33 +49,22 @@ class _OTPLoginScreenState extends State<OTPLoginScreen> {
         smsCode: smsCode,
       );
 
-      // Sign in with the provided credential
       UserCredential userCredential =
           await _auth.signInWithCredential(credential);
       User? user = userCredential.user;
 
       if (user != null) {
         String uid = user.uid;
-
-        // Retrieve the FCM token
         String? token = await FirebaseMessaging.instance.getToken();
-
         if (token != null) {
-          // Update the token in the Realtime Database
-          DatabaseReference userRef = _databaseRef.child("App/User/$uid");
-          await userRef.update({"Token": token});
-          print("✅ Token updated for user $uid: $token");
-        } else {
-          print("⚠ Failed to retrieve FCM token.");
+          await _databaseRef.child("App/User/$uid").update({"Token": token});
         }
 
-        // Navigate to the MainScreen
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const MainScreen()),
+          MaterialPageRoute(builder: (_) => const MainScreen()),
           (Route<dynamic> route) => false,
         );
       } else {
-        // Handle the case where user is null
         showDialog(
           context: context,
           builder: (context) => FailureDialog(
@@ -86,14 +73,12 @@ class _OTPLoginScreenState extends State<OTPLoginScreen> {
           ),
         );
       }
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
       showDialog(
         context: context,
         builder: (context) => const FailureDialog(
           text: 'OTP Verification Failed',
-          text1:
-              // e.message ??
-              'You have entered an incorrect OTP code. Please try again.',
+          text1: 'You have entered an incorrect OTP code. Please try again.',
         ),
       );
     } catch (e) {
@@ -105,11 +90,7 @@ class _OTPLoginScreenState extends State<OTPLoginScreen> {
         ),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -132,7 +113,7 @@ class _OTPLoginScreenState extends State<OTPLoginScreen> {
         counterText: '',
       ),
       keyboardType: TextInputType.number,
-      maxLength: 6, // Assuming a 6-digit OTP
+      maxLength: 6,
     );
   }
 
@@ -143,9 +124,8 @@ class _OTPLoginScreenState extends State<OTPLoginScreen> {
       child: ElevatedButton(
         onPressed: _isLoading ? null : _verifyOTP,
         style: ElevatedButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8.0),
-          ),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
           backgroundColor: kPurpleColor,
         ),
         child: _isLoading
@@ -154,7 +134,7 @@ class _OTPLoginScreenState extends State<OTPLoginScreen> {
               )
             : Text(
                 getTranslated(context, 'Verify OTP'),
-                style: TextStyle(
+                style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Colors.white),
@@ -212,7 +192,6 @@ class _OTPLoginScreenState extends State<OTPLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // To make the background color consistent with the theme
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         elevation: 0,
@@ -224,7 +203,6 @@ class _OTPLoginScreenState extends State<OTPLoginScreen> {
         ),
       ),
       body: GestureDetector(
-        // To dismiss the keyboard when tapping outside
         onTap: () => FocusScope.of(context).unfocus(),
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 36.0),

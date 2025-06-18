@@ -76,6 +76,11 @@ class _EditEstateState extends State<EditEstate> {
 
   // Text Controllers for Arabic and English information
   final TextEditingController arNameController = TextEditingController();
+  final TextEditingController arEstateBranchController =
+      TextEditingController();
+  final TextEditingController phoneNumberController = TextEditingController();
+  final TextEditingController enEstateBranchController =
+      TextEditingController();
   final TextEditingController arBioController = TextEditingController();
   final TextEditingController enNameController = TextEditingController();
   final TextEditingController enBioController = TextEditingController();
@@ -127,6 +132,7 @@ class _EditEstateState extends State<EditEstate> {
   List<String> selectedEditSessionsType = [];
   List<String> selectedEditAdditionalsType = [];
   List<String> lstMusicCoffee = [];
+  final _formKey = GlobalKey<FormState>();
 
   // State Variables
   bool isMusicSelected = false;
@@ -160,6 +166,9 @@ class _EditEstateState extends State<EditEstate> {
     countryValue = widget.objEstate["Country"];
     cityValue = widget.objEstate["City"];
     stateValue = widget.objEstate["State"];
+    arEstateBranchController.text = widget.objEstate["BranchAr"] ?? '';
+    enEstateBranchController.text = widget.objEstate["BranchEn"] ?? '';
+    phoneNumberController.text = widget.objEstate["EstatePhoneNumber"] ?? '';
 
     // Initialize selectedRestaurantTypes from objEstate if available
     // if (widget.objEstate.containsKey('TypeofRestaurant')) {
@@ -271,19 +280,38 @@ class _EditEstateState extends State<EditEstate> {
 
   Future<void> _fetchEstateImages() async {
     try {
-      ListResult result = await storage.ref("${widget.estateId}").listAll();
-      List<String> urls = [];
+      String typePath = widget.estateType == "1"
+          ? "Hottel"
+          : (widget.estateType == "2" ? "Coffee" : "Restaurant");
+      final snap = await FirebaseDatabase.instance
+          .ref('App/Estate/$typePath/${widget.estateId}/ImageUrls')
+          .get();
 
-      for (var item in result.items) {
-        String url = await item.getDownloadURL();
-        urls.add(url);
+      if (snap.exists && snap.value != null) {
+        // snapshot.value is a fixed-length List<dynamic>
+        final raw = snap.value as List<dynamic>;
+        // This .toList() makes it growable:
+        setState(() {
+          existingImageUrls = raw.map((e) => e.toString()).toList();
+        });
+        return;
       }
+    } catch (e) {
+      debugPrint("failed to read ImageUrls from DB: $e");
+    }
 
+    // fallback to Storage if nothing in DB…
+    try {
+      final result = await storage.ref(widget.estateId).listAll();
+      final urls = <String>[];
+      for (var item in result.items) {
+        urls.add(await item.getDownloadURL());
+      }
       setState(() {
-        existingImageUrls = urls;
+        existingImageUrls = List<String>.from(urls);
       });
     } catch (e) {
-      print("Error fetching images: $e");
+      debugPrint("Error fetching images from Storage: $e");
     }
   }
 
@@ -301,34 +329,164 @@ class _EditEstateState extends State<EditEstate> {
     }
   }
 
+  /// Points to your Realtime-DB ImageUrls node
+  DatabaseReference _imageUrlsRef() {
+    final String typePath = widget.estateType == "1"
+        ? "Hottel"
+        : (widget.estateType == "2" ? "Coffee" : "Restaurant");
+    return FirebaseDatabase.instance
+        .ref('App/Estate/$typePath/${widget.estateId}/ImageUrls');
+  }
+
   /// Remove existing image from Firebase Storage
+  // Future<void> removeImage(String imageUrl) async {
+  //   try {
+  //     // Check if there is more than one image before allowing deletion
+  //     if (existingImageUrls.length <= 1) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content:
+  //               Text(getTranslated(context, "At least one image is required.")),
+  //         ),
+  //       );
+  //       return; // Stop further execution
+  //     }
+  //
+  //     Reference ref = storage.refFromURL(imageUrl);
+  //     await ref.delete();
+  //
+  //     setState(() {
+  //       existingImageUrls.remove(imageUrl);
+  //     });
+  //
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(
+  //           content:
+  //               Text(getTranslated(context, "Image removed successfully"))),
+  //     );
+  //   } catch (e) {
+  //     print("Error removing image: $e");
+  //   }
+  // }
+  /// Remove a single image both from Storage and from your
+  /// RTDB ImageUrls list (must keep at least one image).
   Future<void> removeImage(String imageUrl) async {
     try {
-      // Check if there is more than one image before allowing deletion
       if (existingImageUrls.length <= 1) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:
-                Text(getTranslated(context, "At least one image is required.")),
-          ),
+              content: Text(
+                  getTranslated(context, "At least one image is required."))),
         );
-        return; // Stop further execution
+        return;
       }
-
-      Reference ref = storage.refFromURL(imageUrl);
-      await ref.delete();
-
+      await storage.refFromURL(imageUrl).delete();
       setState(() {
         existingImageUrls.remove(imageUrl);
       });
-
+      await _imageUrlsRef().set(existingImageUrls);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content:
                 Text(getTranslated(context, "Image removed successfully"))),
       );
     } catch (e) {
-      print("Error removing image: $e");
+      debugPrint("Error removing image: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(getTranslated(context, "Failed to remove image"))),
+      );
+    }
+  }
+
+  /// Upload any newly-picked images, compressing them first,
+  /// append their URLs to your in-memory list, then overwrite
+  /// the ImageUrls node in RTDB with the merged array.
+  Future<void> saveUpdatedImages() async {
+    if (newImageFiles.isEmpty) return;
+
+    // 1️⃣ Show the same “do not close app” progress dialog:
+    final totalNew = newImageFiles.length;
+    final progressNotifier = ValueNotifier<double>(0);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => WillPopScope(
+        onWillPop: () async => false,
+        child: AlertDialog(
+          content: ValueListenableBuilder<double>(
+            valueListenable: progressNotifier,
+            builder: (context, pct, _) {
+              final display = (pct * 100).clamp(0, 100).toStringAsFixed(0);
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${getTranslated(context, "DoNotCloseApp")}: $display%'),
+                  const SizedBox(height: 16),
+                  LinearProgressIndicator(value: pct),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    try {
+      // 2️⃣ Figure out nextIndex from storage:
+      final existingNames = await fetchExistingImages();
+      int maxIdx = -1;
+      for (var name in existingNames) {
+        final idx = int.tryParse(name.split('.').first) ?? -1;
+        if (idx > maxIdx) maxIdx = idx;
+      }
+      int nextIndex = maxIdx + 1;
+
+      final List<String> uploadedUrls = [];
+
+      // 3️⃣ Upload each new image at full quality:
+      for (var i = 0; i < newImageFiles.length; i++) {
+        final file = File(newImageFiles[i].path);
+        final fileName = '$nextIndex.jpg';
+        final ref = storage.ref(widget.estateId).child(fileName);
+        final task = ref.putFile(
+          file,
+          SettableMetadata(contentType: 'image/jpeg'),
+        );
+
+        // stream progress just like AddImage._uploadFileWithProgress
+        task.snapshotEvents.listen((snap) {
+          if (snap.totalBytes != 0) {
+            final filePct = snap.bytesTransferred / snap.totalBytes!;
+            progressNotifier.value = (i + filePct) / totalNew;
+          }
+        });
+
+        final snap = await task;
+        final url = await snap.ref.getDownloadURL();
+        uploadedUrls.add(url);
+        nextIndex++;
+      }
+
+      // 4️⃣ Merge into state and clear pending:
+      setState(() {
+        existingImageUrls.addAll(uploadedUrls);
+        newImageFiles.clear();
+      });
+
+      // 5️⃣ Overwrite your RTDB node:
+      await _imageUrlsRef().set(existingImageUrls);
+
+      // 6️⃣ Dismiss progress & notify:
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content:
+              Text(getTranslated(context, "Images updated successfully"))));
+    } catch (e) {
+      debugPrint("Error saving updated images: $e");
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(getTranslated(context, "Failed to update images"))));
     }
   }
 
@@ -389,64 +547,64 @@ class _EditEstateState extends State<EditEstate> {
     return compressedFile;
   }
 
-  Future<void> saveUpdatedImages() async {
-    try {
-      // Show the custom loading dialog before the upload starts
-      showCustomLoadingDialog(context);
-
-      List<String> existingImages = await fetchExistingImages();
-      int nextIndex = existingImages.isNotEmpty
-          ? (int.tryParse(existingImages.last.split('.').first) ?? -1) + 1
-          : 0;
-
-      // Create a list of futures for concurrent uploads
-      List<Future<String>> uploadFutures = [];
-
-      for (var image in newImageFiles) {
-        File compressedImage =
-            await compressImage(File(image.path)); // Compress the image
-        String newFileName = "$nextIndex.jpg"; // Generate new name
-        final ref = FirebaseStorage.instance
-            .ref()
-            .child("${widget.estateId}/$newFileName");
-
-        // Add the upload task to the futures list
-        uploadFutures.add(ref.putFile(compressedImage).then((snapshot) {
-          return snapshot.ref
-              .getDownloadURL(); // Return download URL after upload
-        }));
-
-        nextIndex++; // Increment index for the next image
-      }
-
-      // Wait for all uploads to finish
-      List<String> uploadedUrls = await Future.wait(uploadFutures);
-
-      // Update UI with the new images URLs
-      setState(() {
-        newImageFiles.clear();
-      });
-
-      // Dismiss the loading dialog once the upload is complete
-      Navigator.pop(context);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content:
-                Text(getTranslated(context, "Images updated successfully"))),
-      );
-    } catch (e) {
-      print("Error saving images: $e");
-
-      // Dismiss the loading dialog in case of error
-      Navigator.pop(context);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(getTranslated(context, "Failed to update images"))),
-      );
-    }
-  }
+  // Future<void> saveUpdatedImages() async {
+  //   try {
+  //     // Show the custom loading dialog before the upload starts
+  //     showCustomLoadingDialog(context);
+  //
+  //     List<String> existingImages = await fetchExistingImages();
+  //     int nextIndex = existingImages.isNotEmpty
+  //         ? (int.tryParse(existingImages.last.split('.').first) ?? -1) + 1
+  //         : 0;
+  //
+  //     // Create a list of futures for concurrent uploads
+  //     List<Future<String>> uploadFutures = [];
+  //
+  //     for (var image in newImageFiles) {
+  //       File compressedImage =
+  //           await compressImage(File(image.path)); // Compress the image
+  //       String newFileName = "$nextIndex.jpg"; // Generate new name
+  //       final ref = FirebaseStorage.instance
+  //           .ref()
+  //           .child("${widget.estateId}/$newFileName");
+  //
+  //       // Add the upload task to the futures list
+  //       uploadFutures.add(ref.putFile(compressedImage).then((snapshot) {
+  //         return snapshot.ref
+  //             .getDownloadURL(); // Return download URL after upload
+  //       }));
+  //
+  //       nextIndex++; // Increment index for the next image
+  //     }
+  //
+  //     // Wait for all uploads to finish
+  //     List<String> uploadedUrls = await Future.wait(uploadFutures);
+  //
+  //     // Update UI with the new images URLs
+  //     setState(() {
+  //       newImageFiles.clear();
+  //     });
+  //
+  //     // Dismiss the loading dialog once the upload is complete
+  //     Navigator.pop(context);
+  //
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(
+  //           content:
+  //               Text(getTranslated(context, "Images updated successfully"))),
+  //     );
+  //   } catch (e) {
+  //     print("Error saving images: $e");
+  //
+  //     // Dismiss the loading dialog in case of error
+  //     Navigator.pop(context);
+  //
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(
+  //           content: Text(getTranslated(context, "Failed to update images"))),
+  //     );
+  //   }
+  // }
 
   /// Method to open image picker
   Future<void> openImages() async {
@@ -639,894 +797,978 @@ class _EditEstateState extends State<EditEstate> {
             width: MediaQuery.of(context).size.width,
             height: MediaQuery.of(context).size.height,
             child: SafeArea(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                children: [
-                  SizedBox(height: 25),
-                  TextHeader("Edit Estate Images"),
-                  const SizedBox(height: 10),
-                  // Button to Pick New Images
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  children: [
+                    SizedBox(height: 25),
+                    TextHeader("Edit Estate Images"),
+                    const SizedBox(height: 10),
+                    // Button to Pick New Images
 
-                  Align(
-                    alignment: Alignment.center,
-                    child: Row(
-                      children: [
-                        IconButton(
-                          onPressed: pickImages,
-                          icon: const Icon(
-                            Icons
-                                .add_a_photo, // You can use a gallery or camera icon
-                            color:
-                                kPurpleColor, // You can change this to any color that matches your design
-                            size: 28, // Adjust the size as needed
-                          ),
-                          tooltip: getTranslated(context,
-                              "Add New Images"), // Optional: tooltip for accessibility
-                          splashColor: kPurpleColor
-                              .withOpacity(0.2), // Optional: splash effect
-                          highlightColor: kPurpleColor
-                              .withOpacity(0.2), // Optional: highlight effect
-                        ),
-                        TextHeader("Add New Images"),
-                      ],
-                    ),
-                  ),
-
-                  // Display Existing Images
-                  // Display Existing Images
-                  if (existingImageUrls.isNotEmpty)
-                    SizedBox(
-                      height: 180,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: existingImageUrls.length,
-                        itemBuilder: (context, index) {
-                          return Stack(
-                            children: [
-                              Container(
-                                margin:
-                                    const EdgeInsets.symmetric(horizontal: 5),
-                                width: 150,
-                                height: 180,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: CachedNetworkImage(
-                                  imageUrl: existingImageUrls[index],
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                              Positioned(
-                                top: 5,
-                                right: 5,
-                                child: InkWell(
-                                  onTap: () =>
-                                      removeImage(existingImageUrls[index]),
-                                  child: const CircleAvatar(
-                                    radius: 12,
-                                    backgroundColor: Colors.red,
-                                    child: Icon(Icons.close,
-                                        size: 14, color: Colors.white),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    )
-                  else
-                    Container(
+                    Align(
                       alignment: Alignment.center,
-                      padding: const EdgeInsets.all(16),
-                      child: Shimmer.fromColors(
-                        baseColor: Colors.grey[300]!,
-                        highlightColor: Colors.grey[100]!,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Shimmering Cloud Animation (Looks like an image loading)
-                            Icon(
-                              Icons.image,
+                      child: Row(
+                        children: [
+                          IconButton(
+                            onPressed: pickImages,
+                            icon: const Icon(
+                              Icons
+                                  .add_a_photo, // You can use a gallery or camera icon
                               color:
-                                  kPurpleColor, // Use your preferred color here
-                              size: 80, // Adjust size as needed
+                                  kPurpleColor, // You can change this to any color that matches your design
+                              size: 28, // Adjust the size as needed
                             ),
-                            const SizedBox(height: 20),
-                            // Text that can be customized
-                            Text(
-                              getTranslated(context, "Loading images..."),
-                              style: TextStyle(
-                                  fontSize: 16, color: Colors.grey[600]),
-                            ),
-                            const SizedBox(height: 20),
-                            // Optional: More text for engaging message
-                            Text(
-                              getTranslated(context,
-                                  "Please wait while we fetch your images"),
-                              style: TextStyle(
-                                  fontSize: 14, color: Colors.grey[500]),
-                            ),
-                          ],
-                        ),
+                            tooltip: getTranslated(context,
+                                "Add New Images"), // Optional: tooltip for accessibility
+                            splashColor: kPurpleColor
+                                .withOpacity(0.2), // Optional: splash effect
+                            highlightColor: kPurpleColor
+                                .withOpacity(0.2), // Optional: highlight effect
+                          ),
+                          TextHeader("Add New Images"),
+                        ],
                       ),
                     ),
 
-                  // Button to Pick New Images
-                  // Button to Pick New Images
-                  10.kH,
-                  // Display Selected New Images
-                  if (newImageFiles.isNotEmpty)
-                    SizedBox(
-                      height: 180,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: newImageFiles.length,
-                        itemBuilder: (context, index) {
-                          return Stack(
-                            children: [
-                              Container(
-                                margin:
-                                    const EdgeInsets.symmetric(horizontal: 5),
-                                width: 150,
-                                height: 180,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Image.file(
-                                  File(newImageFiles[index].path),
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                              Positioned(
-                                top: 5,
-                                right: 5,
-                                child: InkWell(
-                                  onTap: () {
-                                    setState(() {
-                                      newImageFiles.removeAt(index);
-                                    });
-                                  },
-                                  child: const CircleAvatar(
-                                    radius: 12,
-                                    backgroundColor: Colors.red,
-                                    child: Icon(Icons.close,
-                                        size: 14, color: Colors.white),
+                    // Display Existing Images
+                    // Display Existing Images
+                    if (existingImageUrls.isNotEmpty)
+                      SizedBox(
+                        height: 180,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: existingImageUrls.length,
+                          itemBuilder: (context, index) {
+                            return Stack(
+                              children: [
+                                Container(
+                                  margin:
+                                      const EdgeInsets.symmetric(horizontal: 5),
+                                  width: 150,
+                                  height: 180,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: CachedNetworkImage(
+                                    imageUrl: existingImageUrls[index],
+                                    fit: BoxFit.cover,
                                   ),
                                 ),
+                                Positioned(
+                                  top: 5,
+                                  right: 5,
+                                  child: InkWell(
+                                    onTap: () =>
+                                        removeImage(existingImageUrls[index]),
+                                    child: const CircleAvatar(
+                                      radius: 12,
+                                      backgroundColor: Colors.red,
+                                      child: Icon(Icons.close,
+                                          size: 14, color: Colors.white),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      )
+                    else
+                      Container(
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.all(16),
+                        child: Shimmer.fromColors(
+                          baseColor: Colors.grey[300]!,
+                          highlightColor: Colors.grey[100]!,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Shimmering Cloud Animation (Looks like an image loading)
+                              Icon(
+                                Icons.image,
+                                color:
+                                    kPurpleColor, // Use your preferred color here
+                                size: 80, // Adjust size as needed
+                              ),
+                              const SizedBox(height: 20),
+                              // Text that can be customized
+                              Text(
+                                getTranslated(context, "Loading images..."),
+                                style: TextStyle(
+                                    fontSize: 16, color: Colors.grey[600]),
+                              ),
+                              const SizedBox(height: 20),
+                              // Optional: More text for engaging message
+                              Text(
+                                getTranslated(context,
+                                    "Please wait while we fetch your images"),
+                                style: TextStyle(
+                                    fontSize: 14, color: Colors.grey[500]),
                               ),
                             ],
-                          );
+                          ),
+                        ),
+                      ),
+
+                    // Button to Pick New Images
+                    // Button to Pick New Images
+                    10.kH,
+                    // Display Selected New Images
+                    if (newImageFiles.isNotEmpty)
+                      SizedBox(
+                        height: 180,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: newImageFiles.length,
+                          itemBuilder: (context, index) {
+                            return Stack(
+                              children: [
+                                Container(
+                                  margin:
+                                      const EdgeInsets.symmetric(horizontal: 5),
+                                  width: 150,
+                                  height: 180,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Image.file(
+                                    File(newImageFiles[index].path),
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 5,
+                                  right: 5,
+                                  child: InkWell(
+                                    onTap: () {
+                                      setState(() {
+                                        newImageFiles.removeAt(index);
+                                      });
+                                    },
+                                    child: const CircleAvatar(
+                                      radius: 12,
+                                      backgroundColor: Colors.red,
+                                      child: Icon(Icons.close,
+                                          size: 14, color: Colors.white),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+
+                    // Save Changes Button
+                    // const SizedBox(height: 10),
+                    // ElevatedButton(
+                    //   onPressed: saveUpdatedImages,
+                    //   child: Text(getTranslated(context, "Save Images")),
+                    // ),
+                    TextHeader("Information in Arabic"),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextFormFieldStyle(
+                        context: context,
+                        hint: getTranslated(context, "Name"),
+                        icon: Icon(
+                          Icons.person,
+                          color: kPurpleColor,
+                        ),
+                        control: arNameController,
+                        readOnly: true,
+                        isObsecured: false,
+                        validate: true,
+                        textInputType: TextInputType.text,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return getTranslated(
+                                context, "Estate's name in arabic is missing");
+                          }
+                          return null;
                         },
                       ),
                     ),
 
-                  // Save Changes Button
-                  // const SizedBox(height: 10),
-                  // ElevatedButton(
-                  //   onPressed: saveUpdatedImages,
-                  //   child: Text(getTranslated(context, "Save Images")),
-                  // ),
-                  TextHeader("Information in Arabic"),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: TextFormFieldStyle(
-                      context: context,
-                      hint: getTranslated(context, "Name"),
-                      icon: Icon(
-                        Icons.person,
-                        color: kPurpleColor,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextFormFieldStyle(
+                        context: context,
+                        hint: "Bio",
+                        icon: Icon(
+                          Icons.info,
+                          color: kPurpleColor,
+                        ),
+                        control: arBioController,
+                        isObsecured: false,
+                        validate: true,
+                        textInputType: TextInputType.multiline,
                       ),
-                      control: arNameController,
-                      readOnly: true,
-                      isObsecured: false,
-                      validate: true,
-                      textInputType: TextInputType.text,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return getTranslated(
-                              context, "Estate's name in arabic is missing");
-                        }
-                        return null;
-                      },
                     ),
-                  ),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: TextFormFieldStyle(
-                      context: context,
-                      hint: "Bio",
-                      icon: Icon(
-                        Icons.info,
-                        color: kPurpleColor,
+                    SizedBox(height: 40),
+                    TextHeader("Information in English"),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextFormFieldStyle(
+                        context: context,
+                        hint: getTranslated(context, "Name"),
+                        icon: Icon(
+                          Icons.person,
+                          color: kPurpleColor,
+                        ),
+                        control: enNameController,
+                        isObsecured: false,
+                        validate: true,
+                        readOnly: true,
+                        textInputType: TextInputType.text,
                       ),
-                      control: arBioController,
-                      isObsecured: false,
-                      validate: true,
-                      textInputType: TextInputType.multiline,
                     ),
-                  ),
-                  SizedBox(height: 40),
-                  TextHeader("Information in English"),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: TextFormFieldStyle(
-                      context: context,
-                      hint: getTranslated(context, "Name"),
-                      icon: Icon(
-                        Icons.person,
-                        color: kPurpleColor,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextFormFieldStyle(
+                        context: context,
+                        hint: "Bio",
+                        icon: Icon(
+                          Icons.info,
+                          color: kPurpleColor,
+                        ),
+                        control: enBioController,
+                        isObsecured: false,
+                        validate: true,
+                        textInputType: TextInputType.multiline,
                       ),
-                      control: enNameController,
-                      isObsecured: false,
-                      validate: true,
-                      readOnly: true,
-                      textInputType: TextInputType.text,
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: TextFormFieldStyle(
-                      context: context,
-                      hint: "Bio",
-                      icon: Icon(
-                        Icons.info,
-                        color: kPurpleColor,
-                      ),
-                      control: enBioController,
-                      isObsecured: false,
-                      validate: true,
-                      textInputType: TextInputType.multiline,
-                    ),
-                  ),
-                  SizedBox(height: 40),
-                  TextHeader("Menu"),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: TextFormFieldStyle(
-                      context: context,
-                      hint: getTranslated(context, "Enter Menu Link"),
-                      icon: Icon(
-                        Icons.person,
-                        color: kPurpleColor,
-                      ),
-                      control: menuLinkController,
-                      isObsecured: false,
-                      validate: true,
-                      textInputType: TextInputType.text,
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  TextHeader("Edit Estate Location"),
-                  EditLocationSection(
-                    initialLocation: _editedLocation,
-                    onLocationChanged: (newLocation) {
-                      setState(() {
-                        _editedLocation = newLocation;
-                      });
-                    },
-                  ),
-
-                  40.kH,
-                  TextHeader("Location information"),
-                  const SizedBox(height: 20),
-                  ChooseCity(),
-                  Visibility(
-                    visible: estateType != "3",
-                    child: SizedBox(height: 40),
-                  ),
-
-                  /// Display EntryVisibility for Type "2" and "3"
-                  if (estateType == "2" || estateType == "3")
-                    EditEntryVisibility(
-                      isVisible: estateType == "2" || estateType == "3",
-                      initialSelectedEntries: selectedEntries,
-                      onCheckboxChanged: (bool isChecked, String label) {
-                        setState(() {
-                          if (isChecked) {
-                            if (!selectedEntries.contains(label)) {
-                              selectedEntries.add(label);
-                            }
-                          } else {
-                            selectedEntries.remove(label);
+                    40.kH,
+                    TextHeader("Branch in Arabic"),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextFormFieldStyle(
+                        context: context,
+                        hint: "Branch in Arabic",
+                        icon: Icon(
+                          Icons.person,
+                          color: kPurpleColor,
+                        ),
+                        control: arEstateBranchController,
+                        isObsecured: false,
+                        validate: true,
+                        textInputType: TextInputType.text,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return getTranslated(context,
+                                "Estate's branch name in arabic is missing");
                           }
-                        });
-                      },
+                          return null;
+                        },
+                      ),
                     ),
-                  if (estateType == "2" || estateType == "3")
-                    EditSessionsType(
-                      isVisible: estateType == "2" || estateType == "3",
-                      initialSelectedEntries: selectedEditSessionsType,
-                      onCheckboxChanged: (bool isChecked, String label) {
-                        setState(() {
-                          if (isChecked) {
-                            if (!selectedEditSessionsType.contains(label)) {
-                              selectedEditSessionsType.add(label);
-                            }
-                          } else {
-                            selectedEditSessionsType.remove(label);
+                    40.kH,
+                    TextHeader("Branch in English"),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextFormFieldStyle(
+                        context: context,
+                        hint: "Branch in English",
+                        icon: Icon(
+                          Icons.person,
+                          color: kPurpleColor,
+                        ),
+                        control: enEstateBranchController,
+                        isObsecured: false,
+                        validate: true,
+                        textInputType: TextInputType.text,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return getTranslated(context,
+                                "Estate's branch name in english is missing");
                           }
-                        });
-                      },
+                          return null;
+                        },
+                      ),
                     ),
-                  if (estateType == "2" || estateType == "3")
-                    EditAdditionals(
-                      isVisible: estateType == "2" || estateType == "3",
-                      initialSelectedEntries: selectedEditAdditionalsType,
-                      onCheckboxChanged: (bool isChecked, String label) {
+                    SizedBox(height: 40),
+                    TextHeader("Menu"),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextFormFieldStyle(
+                        context: context,
+                        hint: getTranslated(context, "Enter Menu Link"),
+                        icon: Icon(
+                          Icons.person,
+                          color: kPurpleColor,
+                        ),
+                        control: menuLinkController,
+                        isObsecured: false,
+                        validate: true,
+                        textInputType: TextInputType.text,
+                      ),
+                    ),
+                    40.kH,
+                    TextHeader("Phone Number"),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextFormFieldStyle(
+                        context: context,
+                        hint: "Phone Number",
+                        icon: const Icon(
+                          Icons.phone_android_outlined,
+                          color: kPurpleColor,
+                        ),
+                        control: phoneNumberController,
+                        isObsecured: false,
+                        validate: true,
+                        textInputType: TextInputType.text,
+                        validator: (value) {
+                          // if (value == null || value.trim().isEmpty) {
+                          //   return getTranslated(
+                          //       context, "Phone Number is missing");
+                          // }
+                          // return null;
+                        },
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    TextHeader("Edit Estate Location"),
+                    EditLocationSection(
+                      initialLocation: _editedLocation,
+                      onLocationChanged: (newLocation) {
                         setState(() {
-                          if (isChecked) {
-                            if (!selectedEditAdditionalsType.contains(label)) {
-                              selectedEditAdditionalsType.add(label);
-                            }
-                          } else {
-                            selectedEditAdditionalsType.remove(label);
-                          }
+                          _editedLocation = newLocation;
                         });
                       },
                     ),
 
-                  /// Display Music Services based on Type
-                  if (estateType == "2") ...[
-                    // For Type "2" (Coffee), allow additional music options
-                    EditCoffeeMusicServices(
-                      isVisible: true,
-                      initialSelectedEntries: isMusicSelected
-                          ? lstMusicCoffee.isNotEmpty
-                              ? ["Is there music", ...lstMusicCoffee]
-                              : []
-                          : [],
-                      onCheckboxChanged: (bool isChecked, String label) {
-                        setState(() {
-                          if (label == "Is there music") {
-                            isMusicSelected = isChecked;
-                            if (!isChecked) {
-                              lstMusicCoffee
-                                  .clear(); // Clear music list if disabled
-                            }
-                          } else {
-                            if (isChecked) {
-                              lstMusicCoffee.add(label);
-                            } else {
-                              lstMusicCoffee.remove(label);
-                            }
-                          }
-                        });
-                      },
-                    ),
-                  ] else if (estateType == "1" || estateType == "3") ...[
-                    // For Type "1" (Hotel) and Type "3" (Restaurant), only show "Is there music"
-                    EditMusicServices(
-                      isVisible: true,
-                      allowAdditionalOptions: false, // Disable extra options
-                      initialSelectedEntries:
-                          isMusicSelected ? ["Is there music"] : [],
-                      onCheckboxChanged: (bool isChecked, String label) {
-                        setState(() {
-                          if (label == "Is there music") {
-                            isMusicSelected = isChecked;
-                          }
-                        });
-                      },
-                    ),
-                  ],
-
-                  /// Display RestaurantTypeVisibility for Type "3"
-                  if (estateType == "3") SizedBox(height: 40),
-                  if (estateType == "3")
-                    EditRestaurantTypeVisibility(
-                      isVisible: estateType == "3",
-                      initialSelectedTypes: selectedRestaurantTypes,
-                      onCheckboxChanged: (bool isChecked, String label) {
-                        setState(() {
-                          if (isChecked) {
-                            if (!selectedRestaurantTypes.contains(label)) {
-                              selectedRestaurantTypes.add(label);
-                            }
-                          } else {
-                            selectedRestaurantTypes.remove(label);
-                          }
-                        });
-                      },
+                    40.kH,
+                    TextHeader("Location information"),
+                    const SizedBox(height: 20),
+                    ChooseCity(),
+                    Visibility(
+                      visible: estateType != "3",
+                      child: SizedBox(height: 40),
                     ),
 
-                  SizedBox(height: 40),
-
-                  /// Add the EditKidsArea widget
-                  EditKidsArea(
-                    isVisible: true,
-                    hasKidsArea: hasKidsArea,
-                    onCheckboxChanged: (bool isChecked) {
-                      setState(() {
-                        hasKidsArea = isChecked;
-                      });
-                    },
-                  ),
-                  20.kH,
-                  Visibility(
-                    visible: estateType == "1",
-                    child: Column(
-                      children: [
-                        TextHeader("Hotel Amenities"),
-                        EditSwimmingPool(
-                          isVisible: true,
-                          hasSwimmingPool: hasSwimmingPoolSelected,
-                          onCheckboxChanged: (bool isChecked) {
-                            setState(() {
-                              hasSwimmingPoolSelected = isChecked;
-                            });
-                          },
-                        ),
-                        EditJacuzzi(
-                          isVisible: true,
-                          hasJacuzzi: hasJacuzziSelected,
-                          onCheckboxChanged: (bool isChecked) {
-                            setState(() {
-                              hasJacuzziSelected = isChecked;
-                            });
-                          },
-                        ),
-                        EditBarber(
-                          isVisible: true,
-                          hasBarber: hasBarberSelected,
-                          onCheckboxChanged: (bool isChecked) {
-                            setState(() {
-                              hasBarberSelected = isChecked;
-                            });
-                          },
-                        ),
-                        EditMassage(
-                          isVisible: true,
-                          hasMassage: hasMassageSelected,
-                          onCheckboxChanged: (bool isChecked) {
-                            setState(() {
-                              hasMassageSelected = isChecked;
-                            });
-                          },
-                        ),
-                        EditGym(
-                          isVisible: true,
-                          hasGym: hasGymSelected,
-                          onCheckboxChanged: (bool isChecked) {
-                            setState(() {
-                              hasGymSelected = isChecked;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  40.kH,
-                  Visibility(
-                    visible: estateType == "3" || estateType == "2",
-                    child: Column(
-                      children: [
-                        TextHeader(
-                          "Smoking Area?",
-                        ),
-                        EditSmokingArea(
-                          isVisible: true,
-                          hasSmokingArea: isSmokingAllowed,
-                          onCheckboxChanged: (bool isChecked) {
-                            setState(() {
-                              isSmokingAllowed = isChecked;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  SizedBox(height: 40),
-                  Column(
-                    children: [
-                      TextHeader(
-                        "Valet Options",
-                      ),
-                      EditValetOptions(
-                        isVisible: true,
-                        hasValet: hasValet,
-                        valetWithFees: valetWithFees,
-                        onCheckboxChanged: (bool isChecked) {
+                    /// Display EntryVisibility for Type "2" and "3"
+                    if (estateType == "2" || estateType == "3")
+                      EditEntryVisibility(
+                        isVisible: estateType == "2" || estateType == "3",
+                        initialSelectedEntries: selectedEntries,
+                        onCheckboxChanged: (bool isChecked, String label) {
                           setState(() {
-                            hasValet = isChecked;
-                            if (!hasValet) {
-                              valetWithFees = false;
+                            if (isChecked) {
+                              if (!selectedEntries.contains(label)) {
+                                selectedEntries.add(label);
+                              }
+                            } else {
+                              selectedEntries.remove(label);
                             }
                           });
                         },
-                        onValetFeesChanged: (bool isChecked) {
+                      ),
+                    if (estateType == "2" || estateType == "3")
+                      EditSessionsType(
+                        isVisible: estateType == "2" || estateType == "3",
+                        initialSelectedEntries: selectedEditSessionsType,
+                        onCheckboxChanged: (bool isChecked, String label) {
                           setState(() {
-                            valetWithFees = isChecked;
+                            if (isChecked) {
+                              if (!selectedEditSessionsType.contains(label)) {
+                                selectedEditSessionsType.add(label);
+                              }
+                            } else {
+                              selectedEditSessionsType.remove(label);
+                            }
+                          });
+                        },
+                      ),
+                    if (estateType == "2" || estateType == "3")
+                      EditAdditionals(
+                        isVisible: estateType == "2" || estateType == "3",
+                        initialSelectedEntries: selectedEditAdditionalsType,
+                        onCheckboxChanged: (bool isChecked, String label) {
+                          setState(() {
+                            if (isChecked) {
+                              if (!selectedEditAdditionalsType
+                                  .contains(label)) {
+                                selectedEditAdditionalsType.add(label);
+                              }
+                            } else {
+                              selectedEditAdditionalsType.remove(label);
+                            }
+                          });
+                        },
+                      ),
+
+                    /// Display Music Services based on Type
+                    if (estateType == "2") ...[
+                      // For Type "2" (Coffee), allow additional music options
+                      EditCoffeeMusicServices(
+                        isVisible: true,
+                        initialSelectedEntries: isMusicSelected
+                            ? lstMusicCoffee.isNotEmpty
+                                ? ["Is there music", ...lstMusicCoffee]
+                                : []
+                            : [],
+                        onCheckboxChanged: (bool isChecked, String label) {
+                          setState(() {
+                            if (label == "Is there music") {
+                              isMusicSelected = isChecked;
+                              if (!isChecked) {
+                                lstMusicCoffee
+                                    .clear(); // Clear music list if disabled
+                              }
+                            } else {
+                              if (isChecked) {
+                                lstMusicCoffee.add(label);
+                              } else {
+                                lstMusicCoffee.remove(label);
+                              }
+                            }
+                          });
+                        },
+                      ),
+                    ] else if (estateType == "1" || estateType == "3") ...[
+                      // For Type "1" (Hotel) and Type "3" (Restaurant), only show "Is there music"
+                      EditMusicServices(
+                        isVisible: true,
+                        allowAdditionalOptions: false, // Disable extra options
+                        initialSelectedEntries:
+                            isMusicSelected ? ["Is there music"] : [],
+                        onCheckboxChanged: (bool isChecked, String label) {
+                          setState(() {
+                            if (label == "Is there music") {
+                              isMusicSelected = isChecked;
+                            }
                           });
                         },
                       ),
                     ],
-                  ),
-                  40.kH,
 
-                  Visibility(
-                    visible: estateType == "1",
-                    child: Column(
+                    /// Display RestaurantTypeVisibility for Type "3"
+                    if (estateType == "3") SizedBox(height: 40),
+                    if (estateType == "3")
+                      EditRestaurantTypeVisibility(
+                        isVisible: estateType == "3",
+                        initialSelectedTypes: selectedRestaurantTypes,
+                        onCheckboxChanged: (bool isChecked, String label) {
+                          setState(() {
+                            if (isChecked) {
+                              if (!selectedRestaurantTypes.contains(label)) {
+                                selectedRestaurantTypes.add(label);
+                              }
+                            } else {
+                              selectedRestaurantTypes.remove(label);
+                            }
+                          });
+                        },
+                      ),
+
+                    SizedBox(height: 40),
+
+                    /// Add the EditKidsArea widget
+                    EditKidsArea(
+                      isVisible: true,
+                      hasKidsArea: hasKidsArea,
+                      onCheckboxChanged: (bool isChecked) {
+                        setState(() {
+                          hasKidsArea = isChecked;
+                        });
+                      },
+                    ),
+                    20.kH,
+                    Visibility(
+                      visible: estateType == "1",
+                      child: Column(
+                        children: [
+                          TextHeader("Hotel Amenities"),
+                          EditSwimmingPool(
+                            isVisible: true,
+                            hasSwimmingPool: hasSwimmingPoolSelected,
+                            onCheckboxChanged: (bool isChecked) {
+                              setState(() {
+                                hasSwimmingPoolSelected = isChecked;
+                              });
+                            },
+                          ),
+                          EditJacuzzi(
+                            isVisible: true,
+                            hasJacuzzi: hasJacuzziSelected,
+                            onCheckboxChanged: (bool isChecked) {
+                              setState(() {
+                                hasJacuzziSelected = isChecked;
+                              });
+                            },
+                          ),
+                          EditBarber(
+                            isVisible: true,
+                            hasBarber: hasBarberSelected,
+                            onCheckboxChanged: (bool isChecked) {
+                              setState(() {
+                                hasBarberSelected = isChecked;
+                              });
+                            },
+                          ),
+                          EditMassage(
+                            isVisible: true,
+                            hasMassage: hasMassageSelected,
+                            onCheckboxChanged: (bool isChecked) {
+                              setState(() {
+                                hasMassageSelected = isChecked;
+                              });
+                            },
+                          ),
+                          EditGym(
+                            isVisible: true,
+                            hasGym: hasGymSelected,
+                            onCheckboxChanged: (bool isChecked) {
+                              setState(() {
+                                hasGymSelected = isChecked;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    40.kH,
+                    Visibility(
+                      visible: estateType == "3" || estateType == "2",
+                      child: Column(
+                        children: [
+                          TextHeader(
+                            "Smoking Area?",
+                          ),
+                          EditSmokingArea(
+                            isVisible: true,
+                            hasSmokingArea: isSmokingAllowed,
+                            onCheckboxChanged: (bool isChecked) {
+                              setState(() {
+                                isSmokingAllowed = isChecked;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: 40),
+                    Column(
                       children: [
-                        TextHeader(getTranslated(context, "What We have ?")),
-                        // Single Room
-                        Visibility(
-                          visible: !single,
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  getTranslated(context, "Single"),
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Colors.black),
-                                ),
-                                Checkbox(
-                                  checkColor: Colors.white,
-                                  value: single,
-                                  onChanged: (bool? value) {
-                                    setState(() {
-                                      single = value ?? false;
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
+                        TextHeader(
+                          "Valet Options",
                         ),
-                        // Single Room Details
-                        Visibility(
-                          visible: single,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: Container(
-                                  margin: const EdgeInsets.only(left: 20),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      TextHeader(
-                                          getTranslated(context, "Single")),
-                                      TextFormFieldStyle(
-                                        context: context,
-                                        hint: getTranslated(context, "Price"),
-                                        icon: Icon(
-                                          Icons.attach_money,
-                                          color: kPurpleColor,
-                                        ),
-                                        control: singleController,
-                                        isObsecured: false,
-                                        validate: true,
-                                        textInputType: TextInputType.number,
-                                      ),
-                                      TextFormFieldStyle(
-                                        context: context,
-                                        hint: getTranslated(context, "Bio"),
-                                        icon: Icon(
-                                          Icons.info,
-                                          color: kPurpleColor,
-                                        ),
-                                        control: arBioSingleController,
-                                        isObsecured: false,
-                                        validate: true,
-                                        textInputType: TextInputType.text,
-                                      ),
-                                      TextFormFieldStyle(
-                                        context: context,
-                                        hint: getTranslated(context, "BioEn"),
-                                        icon: Icon(
-                                          Icons.info,
-                                          color: kPurpleColor,
-                                        ),
-                                        control: enBioSingleController,
-                                        isObsecured: false,
-                                        validate: true,
-                                        textInputType: TextInputType.text,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              Expanded(child: closeTextFormFieldStyle(() {
-                                setState(() {
-                                  single = false;
-                                });
-                              }))
-                            ],
-                          ),
-                        ),
-                        // Repeat similar Visibility widgets for Double, Suite, Family
-                        // Double Room
-                        Visibility(
-                          visible: !doubleRoom,
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  getTranslated(context, "Double"),
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Colors.black),
-                                ),
-                                Checkbox(
-                                  checkColor: Colors.white,
-                                  value: doubleRoom,
-                                  onChanged: (bool? value) {
-                                    setState(() {
-                                      doubleRoom = value ?? false;
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        // Double Room Details
-                        Visibility(
-                          visible: doubleRoom,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: Container(
-                                  margin: const EdgeInsets.only(left: 20),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      TextHeader(
-                                          getTranslated(context, "Double")),
-                                      TextFormFieldStyle(
-                                        context: context,
-                                        hint: getTranslated(context, "Price"),
-                                        icon: Icon(
-                                          Icons.attach_money,
-                                          color: kPurpleColor,
-                                        ),
-                                        control: doubleController,
-                                        isObsecured: false,
-                                        validate: true,
-                                        textInputType: TextInputType.number,
-                                      ),
-                                      TextFormFieldStyle(
-                                        context: context,
-                                        hint: getTranslated(context, "Bio"),
-                                        icon: Icon(
-                                          Icons.info,
-                                          color: kPurpleColor,
-                                        ),
-                                        control: arBioDoubleController,
-                                        isObsecured: false,
-                                        validate: true,
-                                        textInputType: TextInputType.text,
-                                      ),
-                                      TextFormFieldStyle(
-                                        context: context,
-                                        hint: getTranslated(context, "BioEn"),
-                                        icon: Icon(
-                                          Icons.info,
-                                          color: kPurpleColor,
-                                        ),
-                                        control: enBioDoubleController,
-                                        isObsecured: false,
-                                        validate: true,
-                                        textInputType: TextInputType.text,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              Expanded(child: closeTextFormFieldStyle(() {
-                                setState(() {
-                                  doubleRoom = false;
-                                });
-                              }))
-                            ],
-                          ),
-                        ),
-                        // Suite Room
-                        Visibility(
-                          visible: !suite,
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  getTranslated(context, "Suite"),
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Colors.black),
-                                ),
-                                Checkbox(
-                                  checkColor: Colors.white,
-                                  value: suite,
-                                  onChanged: (bool? value) {
-                                    setState(() {
-                                      suite = value ?? false;
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        // Suite Room Details
-                        Visibility(
-                          visible: suite,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: Container(
-                                  margin: const EdgeInsets.only(left: 20),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      TextHeader(
-                                          getTranslated(context, "Suite")),
-                                      TextFormFieldStyle(
-                                        context: context,
-                                        hint: getTranslated(context, "Price"),
-                                        icon: Icon(
-                                          Icons.attach_money,
-                                          color: kPurpleColor,
-                                        ),
-                                        control: suiteController,
-                                        isObsecured: false,
-                                        validate: true,
-                                        textInputType: TextInputType.number,
-                                      ),
-                                      TextFormFieldStyle(
-                                        context: context,
-                                        hint: getTranslated(context, "Bio"),
-                                        icon: Icon(
-                                          Icons.info,
-                                          color: kPurpleColor,
-                                        ),
-                                        control: arBioSuiteController,
-                                        isObsecured: false,
-                                        validate: true,
-                                        textInputType: TextInputType.text,
-                                      ),
-                                      TextFormFieldStyle(
-                                        context: context,
-                                        hint: getTranslated(context, "BioEn"),
-                                        icon: Icon(
-                                          Icons.info,
-                                          color: kPurpleColor,
-                                        ),
-                                        control: enBioSuiteController,
-                                        isObsecured: false,
-                                        validate: true,
-                                        textInputType: TextInputType.text,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              Expanded(child: closeTextFormFieldStyle(() {
-                                setState(() {
-                                  suite = false;
-                                });
-                              }))
-                            ],
-                          ),
-                        ),
-                        // Family Room
-                        Visibility(
-                          visible: !family,
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  getTranslated(context, "Family"),
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Colors.black),
-                                ),
-                                Checkbox(
-                                  checkColor: Colors.white,
-                                  value: family,
-                                  onChanged: (bool? value) {
-                                    setState(() {
-                                      family = value ?? false;
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        // Family Room Details
-                        Visibility(
-                          visible: family,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: Container(
-                                  margin: const EdgeInsets.only(left: 20),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      TextHeader(
-                                          getTranslated(context, "Family")),
-                                      TextFormFieldStyle(
-                                        context: context,
-                                        hint: getTranslated(context, "Price"),
-                                        icon: Icon(
-                                          Icons.attach_money,
-                                          color: kPurpleColor,
-                                        ),
-                                        control: familyController,
-                                        isObsecured: false,
-                                        validate: true,
-                                        textInputType: TextInputType.number,
-                                      ),
-                                      TextFormFieldStyle(
-                                        context: context,
-                                        hint: getTranslated(context, "Bio"),
-                                        icon: Icon(
-                                          Icons.info,
-                                          color: kPurpleColor,
-                                        ),
-                                        control: arBioFamilyController,
-                                        isObsecured: false,
-                                        validate: true,
-                                        textInputType: TextInputType.text,
-                                      ),
-                                      TextFormFieldStyle(
-                                        context: context,
-                                        hint: getTranslated(context, "BioEn"),
-                                        icon: Icon(
-                                          Icons.info,
-                                          color: kPurpleColor,
-                                        ),
-                                        control: enBioFamilyController,
-                                        isObsecured: false,
-                                        validate: true,
-                                        textInputType: TextInputType.text,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              Expanded(child: closeTextFormFieldStyle(() {
-                                setState(() {
-                                  family = false;
-                                });
-                              }))
-                            ],
-                          ),
-                        ),
-
-                        SizedBox(
-                          height: 50,
+                        EditValetOptions(
+                          isVisible: true,
+                          hasValet: hasValet,
+                          valetWithFees: valetWithFees,
+                          onCheckboxChanged: (bool isChecked) {
+                            setState(() {
+                              hasValet = isChecked;
+                              if (!hasValet) {
+                                valetWithFees = false;
+                              }
+                            });
+                          },
+                          onValetFeesChanged: (bool isChecked) {
+                            setState(() {
+                              valetWithFees = isChecked;
+                            });
+                          },
                         ),
                       ],
                     ),
-                  ),
-                  SizedBox(
-                    height: 30,
-                  ),
-                ],
+                    40.kH,
+
+                    Visibility(
+                      visible: estateType == "1",
+                      child: Column(
+                        children: [
+                          TextHeader(getTranslated(context, "What We have ?")),
+                          // Single Room
+                          Visibility(
+                            visible: !single,
+                            child: Container(
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    getTranslated(context, "Single"),
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Colors.black),
+                                  ),
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    value: single,
+                                    onChanged: (bool? value) {
+                                      setState(() {
+                                        single = value ?? false;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // Single Room Details
+                          Visibility(
+                            visible: single,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: Container(
+                                    margin: const EdgeInsets.only(left: 20),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        TextHeader(
+                                            getTranslated(context, "Single")),
+                                        TextFormFieldStyle(
+                                          context: context,
+                                          hint: getTranslated(context, "Price"),
+                                          icon: Icon(
+                                            Icons.attach_money,
+                                            color: kPurpleColor,
+                                          ),
+                                          control: singleController,
+                                          isObsecured: false,
+                                          validate: true,
+                                          textInputType: TextInputType.number,
+                                        ),
+                                        TextFormFieldStyle(
+                                          context: context,
+                                          hint: getTranslated(context, "Bio"),
+                                          icon: Icon(
+                                            Icons.info,
+                                            color: kPurpleColor,
+                                          ),
+                                          control: arBioSingleController,
+                                          isObsecured: false,
+                                          validate: true,
+                                          textInputType: TextInputType.text,
+                                        ),
+                                        TextFormFieldStyle(
+                                          context: context,
+                                          hint: getTranslated(context, "BioEn"),
+                                          icon: Icon(
+                                            Icons.info,
+                                            color: kPurpleColor,
+                                          ),
+                                          control: enBioSingleController,
+                                          isObsecured: false,
+                                          validate: true,
+                                          textInputType: TextInputType.text,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Expanded(child: closeTextFormFieldStyle(() {
+                                  setState(() {
+                                    single = false;
+                                  });
+                                }))
+                              ],
+                            ),
+                          ),
+                          // Repeat similar Visibility widgets for Double, Suite, Family
+                          // Double Room
+                          Visibility(
+                            visible: !doubleRoom,
+                            child: Container(
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    getTranslated(context, "Double"),
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Colors.black),
+                                  ),
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    value: doubleRoom,
+                                    onChanged: (bool? value) {
+                                      setState(() {
+                                        doubleRoom = value ?? false;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // Double Room Details
+                          Visibility(
+                            visible: doubleRoom,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: Container(
+                                    margin: const EdgeInsets.only(left: 20),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        TextHeader(
+                                            getTranslated(context, "Double")),
+                                        TextFormFieldStyle(
+                                          context: context,
+                                          hint: getTranslated(context, "Price"),
+                                          icon: Icon(
+                                            Icons.attach_money,
+                                            color: kPurpleColor,
+                                          ),
+                                          control: doubleController,
+                                          isObsecured: false,
+                                          validate: true,
+                                          textInputType: TextInputType.number,
+                                        ),
+                                        TextFormFieldStyle(
+                                          context: context,
+                                          hint: getTranslated(context, "Bio"),
+                                          icon: Icon(
+                                            Icons.info,
+                                            color: kPurpleColor,
+                                          ),
+                                          control: arBioDoubleController,
+                                          isObsecured: false,
+                                          validate: true,
+                                          textInputType: TextInputType.text,
+                                        ),
+                                        TextFormFieldStyle(
+                                          context: context,
+                                          hint: getTranslated(context, "BioEn"),
+                                          icon: Icon(
+                                            Icons.info,
+                                            color: kPurpleColor,
+                                          ),
+                                          control: enBioDoubleController,
+                                          isObsecured: false,
+                                          validate: true,
+                                          textInputType: TextInputType.text,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Expanded(child: closeTextFormFieldStyle(() {
+                                  setState(() {
+                                    doubleRoom = false;
+                                  });
+                                }))
+                              ],
+                            ),
+                          ),
+                          // Suite Room
+                          Visibility(
+                            visible: !suite,
+                            child: Container(
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    getTranslated(context, "Suite"),
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Colors.black),
+                                  ),
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    value: suite,
+                                    onChanged: (bool? value) {
+                                      setState(() {
+                                        suite = value ?? false;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // Suite Room Details
+                          Visibility(
+                            visible: suite,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: Container(
+                                    margin: const EdgeInsets.only(left: 20),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        TextHeader(
+                                            getTranslated(context, "Suite")),
+                                        TextFormFieldStyle(
+                                          context: context,
+                                          hint: getTranslated(context, "Price"),
+                                          icon: Icon(
+                                            Icons.attach_money,
+                                            color: kPurpleColor,
+                                          ),
+                                          control: suiteController,
+                                          isObsecured: false,
+                                          validate: true,
+                                          textInputType: TextInputType.number,
+                                        ),
+                                        TextFormFieldStyle(
+                                          context: context,
+                                          hint: getTranslated(context, "Bio"),
+                                          icon: Icon(
+                                            Icons.info,
+                                            color: kPurpleColor,
+                                          ),
+                                          control: arBioSuiteController,
+                                          isObsecured: false,
+                                          validate: true,
+                                          textInputType: TextInputType.text,
+                                        ),
+                                        TextFormFieldStyle(
+                                          context: context,
+                                          hint: getTranslated(context, "BioEn"),
+                                          icon: Icon(
+                                            Icons.info,
+                                            color: kPurpleColor,
+                                          ),
+                                          control: enBioSuiteController,
+                                          isObsecured: false,
+                                          validate: true,
+                                          textInputType: TextInputType.text,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Expanded(child: closeTextFormFieldStyle(() {
+                                  setState(() {
+                                    suite = false;
+                                  });
+                                }))
+                              ],
+                            ),
+                          ),
+                          // Family Room
+                          Visibility(
+                            visible: !family,
+                            child: Container(
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    getTranslated(context, "Family"),
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Colors.black),
+                                  ),
+                                  Checkbox(
+                                    checkColor: Colors.white,
+                                    value: family,
+                                    onChanged: (bool? value) {
+                                      setState(() {
+                                        family = value ?? false;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // Family Room Details
+                          Visibility(
+                            visible: family,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: Container(
+                                    margin: const EdgeInsets.only(left: 20),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        TextHeader(
+                                            getTranslated(context, "Family")),
+                                        TextFormFieldStyle(
+                                          context: context,
+                                          hint: getTranslated(context, "Price"),
+                                          icon: Icon(
+                                            Icons.attach_money,
+                                            color: kPurpleColor,
+                                          ),
+                                          control: familyController,
+                                          isObsecured: false,
+                                          validate: true,
+                                          textInputType: TextInputType.number,
+                                        ),
+                                        TextFormFieldStyle(
+                                          context: context,
+                                          hint: getTranslated(context, "Bio"),
+                                          icon: Icon(
+                                            Icons.info,
+                                            color: kPurpleColor,
+                                          ),
+                                          control: arBioFamilyController,
+                                          isObsecured: false,
+                                          validate: true,
+                                          textInputType: TextInputType.text,
+                                        ),
+                                        TextFormFieldStyle(
+                                          context: context,
+                                          hint: getTranslated(context, "BioEn"),
+                                          icon: Icon(
+                                            Icons.info,
+                                            color: kPurpleColor,
+                                          ),
+                                          control: enBioFamilyController,
+                                          isObsecured: false,
+                                          validate: true,
+                                          textInputType: TextInputType.text,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Expanded(child: closeTextFormFieldStyle(() {
+                                  setState(() {
+                                    family = false;
+                                  });
+                                }))
+                              ],
+                            ),
+                          ),
+
+                          SizedBox(
+                            height: 50,
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      height: 30,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1574,6 +1816,10 @@ class _EditEstateState extends State<EditEstate> {
                         );
                         return; // Prevent further action if validation fails
                       }
+                      if (!_formKey.currentState!.validate()) {
+                        // If any field is invalid, stop here.
+                        return;
+                      }
 
                       // Determine the current estate type
                       String estateType =
@@ -1585,6 +1831,12 @@ class _EditEstateState extends State<EditEstate> {
                       // Compare simple text and location fields
                       if (arNameController.text !=
                               (widget.objEstate["NameAr"] ?? '') ||
+                          arEstateBranchController.text !=
+                              (widget.objEstate["BranchAr"] ?? '') ||
+                          phoneNumberController.text !=
+                              (widget.objEstate["EstatePhoneNumber"] ?? '') ||
+                          enEstateBranchController.text !=
+                              (widget.objEstate["BranchEn"] ?? '') ||
                           enNameController.text !=
                               (widget.objEstate["NameEn"] ?? '') ||
                           arBioController.text !=
@@ -1736,6 +1988,9 @@ class _EditEstateState extends State<EditEstate> {
         .update({
       "NameAr": arNameController.text,
       "NameEn": enNameController.text,
+      "BranchAr": arEstateBranchController.text,
+      "BranchEn": enEstateBranchController.text,
+      "EstatePhoneNumber": phoneNumberController.text,
       "BioAr": arBioController.text,
       "BioEn": enBioController.text,
       "MenuLink": menuLinkController.text,
