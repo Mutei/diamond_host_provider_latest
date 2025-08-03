@@ -3,6 +3,7 @@ import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:daimond_host_provider/constants/styles.dart';
 import 'package:daimond_host_provider/extension/sized_box_extension.dart';
 import 'package:daimond_host_provider/screens/personal_info_screen.dart';
+import 'package:daimond_host_provider/screens/seat_map_builder_screen.dart';
 import 'package:daimond_host_provider/widgets/extra_services.dart';
 import 'package:daimond_host_provider/widgets/reused_elevated_button.dart';
 import 'package:file_picker/file_picker.dart';
@@ -44,6 +45,8 @@ class AddEstatesScreen extends StatefulWidget {
 
 class _AddEstatesScreenState extends State<AddEstatesScreen> {
   final AddEstateServices backendService = AddEstateServices();
+  String? _layoutId;
+  AutoCadLayout? _pendingLayout;
   List<XFile>? imageFiles;
   TextEditingController nameController = TextEditingController();
   TextEditingController bioController = TextEditingController();
@@ -422,6 +425,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                       )
                     ],
                   ),
+
                   Container(
                     margin: const EdgeInsetsDirectional.only(
                         start: 50, end: 50, bottom: 20),
@@ -733,6 +737,70 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                       ],
                     ),
                   ),
+                  10.kH,
+                  if (widget.userType == "2" || widget.userType == "3") ...[
+                    20.kH,
+                    const ReusedProviderEstateContainer(
+                      hint: "Floor Plan (Optional)",
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 50),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ElevatedButton(
+                            onPressed: () async {
+                              // Determine childType
+                              final childType = widget.userType == "2"
+                                  ? "Coffee"
+                                  : "Restaurant";
+
+                              // Pass the existing _layoutId (may be null) so the builder will edit if present
+                              final layout =
+                                  await Navigator.push<AutoCadLayout?>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => SeatMapBuilderScreen(
+                                    childType: childType,
+                                    estateId: idEstate!.toString(),
+                                    initialLayoutId: _layoutId,
+                                  ),
+                                ),
+                              );
+
+                              if (layout != null) {
+                                setState(() {
+                                  _layoutId = layout.layoutId;
+                                  _pendingLayout = layout;
+                                });
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                      content: Text(getTranslated(
+                                          context, "Floor plan ready"))),
+                                );
+                              }
+                            },
+                            child: Text(
+                              _layoutId == null
+                                  ? getTranslated(
+                                      context, "Configure Floor Plan")
+                                  : getTranslated(
+                                      context, "Reconfigure Floor Plan"),
+                            ),
+                          ),
+                          if (_layoutId != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Text(
+                                "${getTranslated(context, "Configured Layout ID:")} $_layoutId",
+                                style: const TextStyle(color: Colors.green),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  10.kH,
 
                   // TextFormFieldStyle(
                   //   context: context,
@@ -1612,6 +1680,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                   launchPrice.isNotEmpty ? launchPrice : "0",
                               dinnerLoungePrice:
                                   dinnerPrice.isNotEmpty ? dinnerPrice : "0",
+                              layoutId: _layoutId,
                             );
 
                             // Add individual rooms if selected
@@ -1692,6 +1761,13 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             //     ),
                             //   ),
                             // );
+                            if (_pendingLayout != null) {
+                              await backendService.uploadAutoCadLayout(
+                                childType: childType,
+                                estateId: ID,
+                                layout: _pendingLayout!,
+                              );
+                            }
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(
                                   builder: (context) => MapsScreen(

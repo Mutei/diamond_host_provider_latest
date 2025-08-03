@@ -1,0 +1,7 @@
+<!-- calligraphy-arch-window.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140" width="64" height="90">
+  <path d="M10,140 L10,40 A40,40 0 0,1 90,40 L90,140 Z" fill="none" stroke="#333" stroke-width="3"/>
+  <path d="M50,45 a25,25 0 1,0 0.1,0" fill="none" stroke="#333" stroke-width="4"/>
+  <path d="M30,95 C45,75 55,115 70,90" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="70" cy="90" r="2" fill="#333"/>
+</svg>

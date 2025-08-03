@@ -5,6 +5,7 @@
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:daimond_host_provider/screens/seat_map_builder_screen.dart';
 import 'package:daimond_host_provider/widgets/edit_barber.dart';
 import 'package:daimond_host_provider/widgets/edit_coffee_music_services.dart';
 import 'package:daimond_host_provider/widgets/edit_gym.dart';
@@ -33,6 +34,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:sizer/sizer.dart';
 
+import '../backend/adding_estate_services.dart';
 import '../localization/language_constants.dart';
 import '../state_management/general_provider.dart';
 import '../utils/failure_dialogue.dart';
@@ -66,6 +68,9 @@ class EditEstate extends StatefulWidget {
 }
 
 class _EditEstateState extends State<EditEstate> {
+  final AddEstateServices backendService = AddEstateServices();
+  String? _layoutId;
+  AutoCadLayout? _pendingLayout;
   final ImagePicker imgpicker = ImagePicker();
   late LatLng _editedLocation;
   List<XFile>? imagefiles;
@@ -149,6 +154,9 @@ class _EditEstateState extends State<EditEstate> {
   @override
   void initState() {
     super.initState();
+    if (widget.objEstate.containsKey('LayoutId')) {
+      _layoutId = widget.objEstate['LayoutId'];
+    }
     double lat = double.tryParse(widget.objEstate["Lat"].toString()) ?? 37.7749;
     double lon =
         double.tryParse(widget.objEstate["Lon"].toString()) ?? -122.4194;
@@ -1089,12 +1097,70 @@ class _EditEstateState extends State<EditEstate> {
                       ),
                     ),
                     SizedBox(height: 40),
+                    if (estateType == "2" || estateType == "3") ...[
+                      20.kH,
+                      TextHeader("Floor Plan (Optional)"),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ElevatedButton.icon(
+                              icon: Icon(Icons.map, color: kPurpleColor),
+                              label: Text(_layoutId == null
+                                  ? getTranslated(
+                                      context, "Configure Floor Plan")
+                                  : getTranslated(
+                                      context, "Reconfigure Floor Plan")),
+                              onPressed: () async {
+                                final layout =
+                                    await Navigator.push<AutoCadLayout?>(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => SeatMapBuilderScreen(
+                                      childType: estateType == "2"
+                                          ? "Coffee"
+                                          : "Restaurant",
+                                      estateId: widget.estateId,
+                                      initialLayoutId: _layoutId,
+                                    ),
+                                  ),
+                                );
+                                if (layout != null) {
+                                  setState(() {
+                                    _layoutId = layout.layoutId;
+                                    _pendingLayout = layout;
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        getTranslated(
+                                            context, "Floor plan ready"),
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                            if (_layoutId != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: Text(
+                                  "${getTranslated(context, "Configured Layout ID:")} $_layoutId",
+                                  style: const TextStyle(color: Colors.green),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    40.kH,
                     TextHeader("Menu"),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: TextFormFieldStyle(
                         context: context,
-                        hint: getTranslated(context, "Enter Menu Link"),
+                        hint: "Enter Menu Link",
                         icon: Icon(
                           Icons.person,
                           color: kPurpleColor,
@@ -1774,6 +1840,175 @@ class _EditEstateState extends State<EditEstate> {
           ),
 
           /// Additional sections can go here...
+
+          // Align(
+          //   alignment: Alignment.bottomCenter,
+          //   child: Row(
+          //     children: [
+          //       Expanded(
+          //         flex: 3,
+          //         child: InkWell(
+          //           child: Container(
+          //             width: 150.w,
+          //             height: 6.h,
+          //             margin: const EdgeInsets.only(
+          //                 right: 20, left: 20, bottom: 20),
+          //             decoration: BoxDecoration(
+          //               color: kPurpleColor,
+          //               borderRadius: BorderRadius.circular(12),
+          //             ),
+          //             child: Center(
+          //               child: Text(
+          //                 getTranslated(context, "Save"),
+          //                 style: const TextStyle(color: Colors.white),
+          //               ),
+          //             ),
+          //           ),
+          //           onTap: () async {
+          //             // 1️⃣ Validate entries & form
+          //             bool isEntryValid = validateSelection();
+          //             if (!isEntryValid) {
+          //               showDialog(
+          //                 context: context,
+          //                 builder: (_) => const FailureDialog(
+          //                   text: "Incomplete Entry",
+          //                   text1: "Select at least 1!",
+          //                 ),
+          //               );
+          //               return;
+          //             }
+          //             if (!_formKey.currentState!.validate()) return;
+          //
+          //             // 2️⃣ Determine estate type
+          //             String estateType = widget.objEstate['Type'] ?? "1";
+          //
+          //             // 3️⃣ Detect any changes
+          //             bool changesMade = false;
+          //
+          //             // — Compare text & location fields
+          //             if (arNameController.text !=
+          //                     (widget.objEstate["NameAr"] ?? '') ||
+          //                 arEstateBranchController.text !=
+          //                     (widget.objEstate["BranchAr"] ?? '') ||
+          //                 phoneNumberController.text !=
+          //                     (widget.objEstate["EstatePhoneNumber"] ?? '') ||
+          //                 enEstateBranchController.text !=
+          //                     (widget.objEstate["BranchEn"] ?? '') ||
+          //                 enNameController.text !=
+          //                     (widget.objEstate["NameEn"] ?? '') ||
+          //                 arBioController.text !=
+          //                     (widget.objEstate["BioAr"] ?? '') ||
+          //                 enBioController.text !=
+          //                     (widget.objEstate["BioEn"] ?? '') ||
+          //                 menuLinkController.text !=
+          //                     (widget.objEstate["MenuLink"] ?? '') ||
+          //                 countryValue != (widget.objEstate["Country"] ?? '') ||
+          //                 cityValue != (widget.objEstate["City"] ?? '') ||
+          //                 stateValue != (widget.objEstate["State"] ?? '') ||
+          //                 _editedLocation.latitude !=
+          //                     double.tryParse(
+          //                         widget.objEstate["Lat"].toString()) ||
+          //                 _editedLocation.longitude !=
+          //                     double.tryParse(
+          //                         widget.objEstate["Lon"].toString())) {
+          //               changesMade = true;
+          //             }
+          //
+          //             // — Compare lists & booleans
+          //             if ((estateType == "3" &&
+          //                     selectedRestaurantTypes.join(",") !=
+          //                         (widget.objEstate["TypeofRestaurant"] ??
+          //                             '')) ||
+          //                 (selectedEntries.join(",") !=
+          //                     (widget.objEstate["Entry"] ?? '')) ||
+          //                 ((estateType == "2" || estateType == "3") &&
+          //                     selectedEditSessionsType.join(",") !=
+          //                         (widget.objEstate["Sessions"] ?? '')) ||
+          //                 ((estateType == "2" || estateType == "3") &&
+          //                     selectedEditAdditionalsType.join(",") !=
+          //                         (widget.objEstate["additionals"] ?? '')) ||
+          //                 ((isMusicSelected ? "1" : "0") !=
+          //                     (widget.objEstate["Music"] ?? "0")) ||
+          //                 (lstMusicCoffee.join(",") !=
+          //                     (widget.objEstate["Lstmusic"] ?? '')) ||
+          //                 ((hasKidsArea ? "1" : "0") !=
+          //                     (widget.objEstate["HasKidsArea"] ?? "0")) ||
+          //                 ((hasSwimmingPoolSelected ? "1" : "0") !=
+          //                     (widget.objEstate["HasSwimmingPool"] ?? "0")) ||
+          //                 ((hasBarberSelected ? "1" : "0") !=
+          //                     (widget.objEstate["HasBarber"] ?? "0")) ||
+          //                 ((hasGymSelected ? "1" : "0") !=
+          //                     (widget.objEstate["HasGym"] ?? "0")) ||
+          //                 ((hasJacuzziSelected ? "1" : "0") !=
+          //                     (widget.objEstate["HasJacuzziInRoom"] ?? "0")) ||
+          //                 ((hasMassageSelected ? "1" : "0") !=
+          //                     (widget.objEstate["HasMassage"] ?? "0")) ||
+          //                 ((isSmokingAllowed ? "1" : "0") !=
+          //                     (widget.objEstate["IsSmokingAllowed"] ?? "0")) ||
+          //                 ((hasValet ? "1" : "0") !=
+          //                     (widget.objEstate["HasValet"] ?? "0")) ||
+          //                 ((valetWithFees ? "1" : "0") !=
+          //                     (widget.objEstate["ValetWithFees"] ?? "0"))) {
+          //               changesMade = true;
+          //             }
+          //
+          //             // — New images?
+          //             if (newImageFiles.isNotEmpty) changesMade = true;
+          //
+          //             // — Reconfigured floor plan?
+          //             if (_pendingLayout != null) changesMade = true;
+          //
+          //             // 4️⃣ If anything changed, do updates & uploads
+          //             if (changesMade) {
+          //               // Update main estate fields
+          //               await Update();
+          //
+          //               // Upload new photos
+          //               if (newImageFiles.isNotEmpty) {
+          //                 await saveUpdatedImages();
+          //               }
+          //
+          //               // Upload floor plan if reconfigured
+          //               if (_pendingLayout != null) {
+          //                 final childType =
+          //                     estateType == "2" ? "Coffee" : "Restaurant";
+          //                 await backendService.uploadAutoCadLayout(
+          //                   childType: childType,
+          //                   estateId: widget.estateId,
+          //                   layout: _pendingLayout!,
+          //                 );
+          //               }
+          //
+          //               // Show success
+          //               await showDialog(
+          //                 context: context,
+          //                 builder: (_) => const SuccessDialog(
+          //                   text: "Success",
+          //                   text1: "Your estate has been successfully updated.",
+          //                 ),
+          //               );
+          //
+          //               // Navigate back
+          //               if (estateType == "2" || estateType == "3") {
+          //                 Navigator.of(context).popUntil((r) => r.isFirst);
+          //               }
+          //             } else {
+          //               // No changes
+          //               await showDialog(
+          //                 context: context,
+          //                 builder: (_) => const FailureDialog(
+          //                   text: "No Changes Detected",
+          //                   text1:
+          //                       "You did not make any changes to your estate.",
+          //                 ),
+          //               );
+          //             }
+          //           },
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
 
           Align(
             alignment: Alignment.bottomCenter,

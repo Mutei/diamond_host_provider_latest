@@ -371,8 +371,16 @@ class _ReusedAllPostsCardsState extends State<ReusedAllPostsCards> {
                   widget.onDelete();
                 }
               },
+              // itemBuilder: (BuildContext context) {
+              //   return {'Edit', 'Delete'}.map((String choice) {
+              //     return PopupMenuItem<String>(
+              //       value: choice,
+              //       child: Text(getTranslated(context, choice)),
+              //     );
+              //   }).toList();
+              // },
               itemBuilder: (BuildContext context) {
-                return {'Edit', 'Delete'}.map((String choice) {
+                return {'Delete'}.map((String choice) {
                   return PopupMenuItem<String>(
                     value: choice,
                     child: Text(getTranslated(context, choice)),

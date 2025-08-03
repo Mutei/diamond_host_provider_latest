@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+  <!-- tank -->
+  <path d="M8,2 H16 A2,2 0 0,1 18,4 V10 A2,2 0 0,1 16,12 H8 A2,2 0 0,1 6,10 V4 A2,2 0 0,1 8,2 Z"/>
+  <!-- bowl -->
+  <rect x="7" y="12" width="10" height="8" rx="1"/>
+</svg>

@@ -1,0 +1,11 @@
+<!-- palm-leaf-window.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" width="64" height="77">
+  <path d="M10,120 L10,40 A40,40 0 0,1 90,40 L90,120 Z" fill="none" stroke="#333" stroke-width="3"/>
+  <rect x="10" y="40" width="80" height="80" fill="#e0e0e0" opacity="0.6"/>
+  <g stroke="#555" stroke-width="2" fill="none">
+    <path d="M20,100 C35,80 65,80 80,100"/>
+    <path d="M25,95 C35,75 65,75 75,95"/>
+    <path d="M30,90 C35,70 65,70 70,90"/>
+    <line d="M50,40 L50,120"/>
+  </g>
+</svg>

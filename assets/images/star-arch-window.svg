@@ -1,0 +1,10 @@
+<!-- star-arch-window.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140" width="64" height="90">
+  <defs>
+    <pattern id="starPattern" x="0" y="0" width="0.25" height="0.25" patternUnits="objectBoundingBox">
+      <polygon points="0.5,0 0.61,0.35 1,0.38 0.68,0.62 0.79,1 0.5,0.78 0.21,1 0.32,0.62 0,0.38 0.39,0.35" fill="#333"/>
+    </pattern>
+  </defs>
+  <path d="M10,140 L10,50 A40,40 0 0,1 90,50 L90,140 Z" fill="none" stroke="#333" stroke-width="3"/>
+  <rect x="10" y="50" width="80" height="90" fill="url(#starPattern)" clip-path="url(#archFrame)"/>
+</svg>

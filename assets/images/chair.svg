@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+  <!-- seat -->
+  <rect x="6" y="10" width="12" height="6" rx="1"/>
+  <!-- legs -->
+  <rect x="6" y="16" width="2" height="4"/>
+  <rect x="16" y="16" width="2" height="4"/>
+  <!-- backrest -->
+  <rect x="4" y="8" width="2" height="8"/>
+  <rect x="18" y="8" width="2" height="8"/>
+</svg>

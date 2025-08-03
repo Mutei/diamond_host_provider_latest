@@ -1,0 +1,12 @@
+<!-- oasis-view-window.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" width="64" height="77">
+  <path d="M10,120 L10,40 A40,40 0 0,1 90,40 L90,120 Z" fill="none" stroke="#333" stroke-width="3"/>
+  <rect x="10" y="90" width="80" height="30" fill="#e9c46a"/>
+  <g fill="#333">
+    <rect x="25" y="70" width="2" height="20"/>
+    <path d="M26,70 C20,65 18,72 26,72 C34,72 32,65 26,70"/>
+    <rect x="60" y="68" width="2" height="22"/>
+    <path d="M61,68 C55,63 53,70 61,70 C69,70 67,63 61,68"/>
+  </g>
+  <path d="M10,90 C30,80 50,95 70,85 90,95 90,98 10,98 Z" fill="#f4a261"/>
+</svg>

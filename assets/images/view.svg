@@ -1,0 +1,9 @@
+<!-- view.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Sun -->
+  <circle cx="46" cy="18" r="8" fill="#FFD166"/>
+  <!-- Mountains -->
+  <path d="M4 54 L24 28 L36 44 L52 26 L60 54 Z" fill="none" stroke="#333" stroke-width="4"/>
+  <!-- Ground line -->
+  <line x1="4" y1="54" x2="60" y2="54" stroke="#333" stroke-width="4"/>
+</svg>

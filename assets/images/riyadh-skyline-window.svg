@@ -1,0 +1,16 @@
+<!-- riyadh-skyline-window.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width="64" height="43">
+  <rect x="2" y="2" width="116" height="76" fill="none" stroke="#333" stroke-width="3" rx="4"/>
+  <line x1="2" y1="40" x2="118" y2="40" stroke="#333" stroke-width="3"/>
+  <line x1="60" y1="2" x2="60" y2="78" stroke="#333" stroke-width="3"/>
+  <path d="M2,65 C30,50 60,75 90,60 118,75 118,78 2,78 Z" fill="#f4a261"/>
+  <g fill="#333">
+    <rect x="20" y="35" width="20" height="30"/>
+    <rect x="28" y="35" width="4" height="10" fill="#f0f0f0"/>
+    <path d="M50,65 L55,45 L60,65 Z"/>
+    <circle cx="57.5" cy="45" r="2"/>
+    <path d="M80,65 L80,50" stroke="#333" stroke-width="2"/>
+    <path d="M80,50 C75,45 70,50 80,50" stroke="#333" stroke-width="2" fill="none"/>
+    <path d="M80,50 C85,45 90,50 80,50" stroke="#333" stroke-width="2" fill="none"/>
+  </g>
+</svg>

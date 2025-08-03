@@ -6,6 +6,8 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../screens/seat_map_builder_screen.dart';
+
 class AddEstateServices {
   final ImagePicker imagePicker = ImagePicker();
   final FirebaseStorage storage = FirebaseStorage.instance;
@@ -20,6 +22,44 @@ class AddEstateServices {
     } catch (e) {
       print("Error while picking file: $e");
       return null;
+    }
+  }
+
+  Future<void> uploadAutoCadLayout({
+    required String childType,
+    required String estateId,
+    required AutoCadLayout layout,
+  }) async {
+    final ref = FirebaseDatabase.instance
+        .ref("App")
+        .child("Estate")
+        .child(childType)
+        .child(estateId)
+        .child("AutoCad")
+        .child(layout.layoutId);
+
+    // write room size
+    await ref.child('size').set({
+      'width': layout.width,
+      'height': layout.height,
+      'timestamp': ServerValue.timestamp,
+    });
+
+    final spotsRef = ref.child('spots');
+    for (final spot in layout.spots) {
+      await spotsRef.child(spot.id).set({
+        'type': spot.type.name,
+        'shape': spot.shape.name,
+        'capacity': spot.capacity,
+        'seatType': spot.seatType.name,
+        'decoration': spot.decorationType?.name,
+        'x': spot.x,
+        'y': spot.y,
+        'w': spot.w,
+        'h': spot.h,
+        'color': spot.color.value,
+        'timestamp': ServerValue.timestamp,
+      });
     }
   }
 
@@ -147,7 +187,8 @@ class AddEstateServices {
     required bool isThereBreakfastLounge,
     required bool isThereLaunchLounge,
     String? facilityImageUrl,
-    String? taxImageUrl, // Consider renaming to facilityPdfUrl
+    String? taxImageUrl,
+    String? layoutId, // Consider renaming to facilityPdfUrl
     required bool hasJacuzzi,
     required String estatePhoneNumber,
   }) async {
@@ -199,7 +240,9 @@ class AddEstateServices {
       "FacilityPdfUrl": facilityImageUrl ?? "",
       "TaxPdfUrl": taxImageUrl ?? "", // Renamed for clarity
       "IsAccepted": "1",
-      "IsCompleted": "0" // Mark as incomplete initially
+      "IsCompleted": "0",
+      if (layoutId != null)
+        "LayoutId": layoutId, // Mark as incomplete initially
     });
   }
 
