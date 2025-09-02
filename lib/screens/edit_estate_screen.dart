@@ -1,7 +1,3 @@
-// File: edit_estate_screen.dart
-
-// ignore_for_file: non_constant_identifier_names
-
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -11,8 +7,8 @@ import 'package:daimond_host_provider/widgets/edit_coffee_music_services.dart';
 import 'package:daimond_host_provider/widgets/edit_gym.dart';
 import 'package:daimond_host_provider/widgets/edit_jacuzzi.dart';
 import 'package:daimond_host_provider/widgets/edit_massage.dart';
-import 'package:daimond_host_provider/widgets/edit_music_services.dart'; // Updated import
-import 'package:daimond_host_provider/widgets/edit_kids_area.dart'; // New import
+import 'package:daimond_host_provider/widgets/edit_music_services.dart';
+import 'package:daimond_host_provider/widgets/edit_kids_area.dart';
 import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:daimond_host_provider/constants/styles.dart';
 import 'package:daimond_host_provider/extension/sized_box_extension.dart';
@@ -48,20 +44,23 @@ import '../widgets/edit_restaurant_type_visibility.dart';
 import 'additional_facility_screen.dart';
 import 'main_screen_content.dart';
 
-/// Modified EditEstate Widget
+// METRO
+import '../widgets/riyadh_metro_picker.dart';
+import 'package:collection/collection.dart';
+
 class EditEstate extends StatefulWidget {
   final Map objEstate;
   final List<Rooms> LstRooms;
   final String estateId;
   final String estateType;
 
-  EditEstate(
-      {required this.objEstate,
-      required this.LstRooms,
-      required this.estateId,
-      required this.estateType,
-      Key? key})
-      : super(key: key);
+  EditEstate({
+    required this.objEstate,
+    required this.LstRooms,
+    required this.estateId,
+    required this.estateType,
+    Key? key,
+  }) : super(key: key);
 
   @override
   _EditEstateState createState() => _EditEstateState();
@@ -79,7 +78,7 @@ class _EditEstateState extends State<EditEstate> {
   final ImagePicker imgPicker = ImagePicker();
   final FirebaseStorage storage = FirebaseStorage.instance;
 
-  // Text Controllers for Arabic and English information
+  // Text Controllers
   final TextEditingController arNameController = TextEditingController();
   final TextEditingController arEstateBranchController =
       TextEditingController();
@@ -91,12 +90,12 @@ class _EditEstateState extends State<EditEstate> {
   final TextEditingController enBioController = TextEditingController();
   TextEditingController menuLinkController = TextEditingController();
 
-  // Text Controllers for Location
+  // Location Controllers
   final TextEditingController countryController = TextEditingController();
   final TextEditingController cityController = TextEditingController();
   final TextEditingController stateController = TextEditingController();
 
-  // Controllers for Rooms (if still needed)
+  // Rooms
   final TextEditingController singleController = TextEditingController();
   final TextEditingController doubleController = TextEditingController();
   final TextEditingController suiteController = TextEditingController();
@@ -116,22 +115,22 @@ class _EditEstateState extends State<EditEstate> {
   final TextEditingController suiteControllerID = TextEditingController();
   final TextEditingController familyControllerID = TextEditingController();
 
-  // Room Availability Booleans
+  // Room availability
   bool single = false;
-  bool doubleRoom = false; // Renamed to avoid conflict with Dart's 'double'
+  bool doubleRoom = false;
   bool suite = false;
   bool family = false;
 
-  // Location Values
+  // Location values
   String? countryValue;
   String? stateValue;
   String? cityValue;
 
-  // Firebase Reference
+  // Firebase
   final DatabaseReference ref =
       FirebaseDatabase.instance.ref("App").child("Estate");
 
-  // Lists to manage selected types and entries
+  // Selections
   List<String> selectedRestaurantTypes = [];
   List<String> selectedEntries = [];
   List<String> selectedEditSessionsType = [];
@@ -139,9 +138,9 @@ class _EditEstateState extends State<EditEstate> {
   List<String> lstMusicCoffee = [];
   final _formKey = GlobalKey<FormState>();
 
-  // State Variables
+  // Toggles
   bool isMusicSelected = false;
-  bool hasKidsArea = false; // New state variable
+  bool hasKidsArea = false;
   bool hasSwimmingPoolSelected = false;
   bool hasJacuzziSelected = false;
   bool hasBarberSelected = false;
@@ -151,18 +150,60 @@ class _EditEstateState extends State<EditEstate> {
   bool hasValet = false;
   bool valetWithFees = false;
 
+  // METRO: controller + cached original (to detect changes)
+  final MetroSelectionController _metro = MetroSelectionController();
+  String _metroCity = ""; // "Riyadh" or ""
+  Map<String, List<String>> _metroPrevStationsByLine = {};
+  List<String> _metroPrevLines = [];
+
   @override
   void initState() {
     super.initState();
+
+    // METRO: hydrate controller from existing DB object
+    final metro = widget.objEstate["Metro"];
+    if (metro is Map) {
+      _metroCity = (metro["City"] ?? "").toString();
+      final lines = metro["Lines"];
+      if (lines is Map) {
+        _metroPrevStationsByLine = {};
+        _metroPrevLines = [];
+        lines.forEach((lineName, value) {
+          final ln = lineName.toString();
+          final stationsStr =
+              (value is Map ? value["Stations"] : "")?.toString() ?? "";
+          final stations = stationsStr
+              .split(",")
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+
+          _metroPrevLines.add(ln);
+          _metroPrevStationsByLine[ln] = stations;
+
+          // Hydrate controller (guard list)
+          // Hydrate controller (guard set)
+          _metro.selectedLines[ln] = true;
+          final set =
+              _metro.selectedStationsByLine.putIfAbsent(ln, () => <String>{});
+          set.addAll(
+              stations); // stations is List<String>; addAll works on Set<String>
+        });
+      }
+    }
+
     if (widget.objEstate.containsKey('LayoutId')) {
       _layoutId = widget.objEstate['LayoutId'];
     }
-    double lat = double.tryParse(widget.objEstate["Lat"].toString()) ?? 37.7749;
-    double lon =
+
+    final double lat =
+        double.tryParse(widget.objEstate["Lat"].toString()) ?? 37.7749;
+    final double lon =
         double.tryParse(widget.objEstate["Lon"].toString()) ?? -122.4194;
     _editedLocation = LatLng(lat, lon);
-    // Initialize controllers with existing data
+
     _fetchEstateImages();
+
     arNameController.text = widget.objEstate["NameAr"] ?? '';
     arBioController.text = widget.objEstate["BioAr"] ?? '';
     enNameController.text = widget.objEstate["NameEn"] ?? '';
@@ -178,12 +219,6 @@ class _EditEstateState extends State<EditEstate> {
     enEstateBranchController.text = widget.objEstate["BranchEn"] ?? '';
     phoneNumberController.text = widget.objEstate["EstatePhoneNumber"] ?? '';
 
-    // Initialize selectedRestaurantTypes from objEstate if available
-    // if (widget.objEstate.containsKey('TypeofRestaurant')) {
-    //   String typeOfRestaurant = widget.objEstate['TypeofRestaurant'];
-    //   selectedRestaurantTypes =
-    //       typeOfRestaurant.split(',').map((e) => e.trim()).toList();
-    // }
     if (widget.objEstate.containsKey('TypeofRestaurant')) {
       String typeOfRestaurant = widget.objEstate['TypeofRestaurant'];
       selectedRestaurantTypes = typeOfRestaurant
@@ -193,11 +228,6 @@ class _EditEstateState extends State<EditEstate> {
           .toList();
     }
 
-    // Initialize selectedEntries from objEstate if available
-    // if (widget.objEstate.containsKey('Entry')) {
-    //   String entry = widget.objEstate['Entry'];
-    //   selectedEntries = entry.split(',').map((e) => e.trim()).toList();
-    // }
     if (widget.objEstate.containsKey('Entry')) {
       String entry = widget.objEstate['Entry'];
       selectedEntries = entry
@@ -207,10 +237,6 @@ class _EditEstateState extends State<EditEstate> {
           .toList();
     }
 
-    // if (widget.objEstate.containsKey('Sessions')) {
-    //   String entry = widget.objEstate['Sessions'];
-    //   selectedEditSessionsType = entry.split(',').map((e) => e.trim()).toList();
-    // }
     if (widget.objEstate.containsKey('Sessions')) {
       String entry = widget.objEstate['Sessions'];
       selectedEditSessionsType = entry
@@ -219,16 +245,15 @@ class _EditEstateState extends State<EditEstate> {
           .where((e) => e.isNotEmpty)
           .toList();
     }
+
     if (widget.objEstate.containsKey('additionals')) {
       String entry = widget.objEstate['additionals'];
       selectedEditAdditionalsType =
           entry.split(',').map((e) => e.trim()).toList();
     }
+
     isMusicSelected = widget.objEstate["Music"] == "1";
-    // if (widget.objEstate.containsKey('Lstmusic')) {
-    //   String entry = widget.objEstate['Lstmusic'];
-    //   lstMusicCoffee = entry.split(',').map((e) => e.trim()).toList();
-    // }
+
     if (widget.objEstate.containsKey('Lstmusic')) {
       String entry = widget.objEstate['Lstmusic'];
       lstMusicCoffee = entry
@@ -237,9 +262,9 @@ class _EditEstateState extends State<EditEstate> {
           .where((e) => e.isNotEmpty)
           .toList();
     }
-    hasKidsArea = widget.objEstate["HasKidsArea"] == "1"; // Initialize
-    hasSwimmingPoolSelected =
-        widget.objEstate["HasSwimmingPool"] == "1"; // Initialize
+
+    hasKidsArea = widget.objEstate["HasKidsArea"] == "1";
+    hasSwimmingPoolSelected = widget.objEstate["HasSwimmingPool"] == "1";
     hasBarberSelected = widget.objEstate["HasBarber"] == "1";
     hasGymSelected = widget.objEstate["HasGym"] == "1";
     hasJacuzziSelected = widget.objEstate["HasJacuzziInRoom"] == "1";
@@ -248,7 +273,7 @@ class _EditEstateState extends State<EditEstate> {
     hasValet = widget.objEstate["HasValet"] == "1";
     valetWithFees = widget.objEstate["ValetWithFees"] == "1";
 
-    // Initialize Rooms data if still relevant
+    // Rooms
     for (var room in widget.LstRooms) {
       switch (room.name.toLowerCase()) {
         case "single":
@@ -280,7 +305,6 @@ class _EditEstateState extends State<EditEstate> {
           familyControllerID.text = room.id;
           break;
         default:
-          // Handle unknown room types if necessary
           break;
       }
     }
@@ -296,9 +320,7 @@ class _EditEstateState extends State<EditEstate> {
           .get();
 
       if (snap.exists && snap.value != null) {
-        // snapshot.value is a fixed-length List<dynamic>
         final raw = snap.value as List<dynamic>;
-        // This .toList() makes it growable:
         setState(() {
           existingImageUrls = raw.map((e) => e.toString()).toList();
         });
@@ -308,7 +330,6 @@ class _EditEstateState extends State<EditEstate> {
       debugPrint("failed to read ImageUrls from DB: $e");
     }
 
-    // fallback to Storage if nothing in DB…
     try {
       final result = await storage.ref(widget.estateId).listAll();
       final urls = <String>[];
@@ -323,7 +344,15 @@ class _EditEstateState extends State<EditEstate> {
     }
   }
 
-  /// Pick new images
+  bool _hasPartialMetroSelection() {
+    // True if at least one line is selected but stations are missing for it
+    return _metro.selectedLines.entries.any(
+      (entry) =>
+          entry.value &&
+          (_metro.selectedStationsByLine[entry.key]?.isEmpty ?? true),
+    );
+  }
+
   Future<void> pickImages() async {
     try {
       final pickedFiles = await imgPicker.pickMultiImage();
@@ -337,7 +366,6 @@ class _EditEstateState extends State<EditEstate> {
     }
   }
 
-  /// Points to your Realtime-DB ImageUrls node
   DatabaseReference _imageUrlsRef() {
     final String typePath = widget.estateType == "1"
         ? "Hottel"
@@ -346,38 +374,6 @@ class _EditEstateState extends State<EditEstate> {
         .ref('App/Estate/$typePath/${widget.estateId}/ImageUrls');
   }
 
-  /// Remove existing image from Firebase Storage
-  // Future<void> removeImage(String imageUrl) async {
-  //   try {
-  //     // Check if there is more than one image before allowing deletion
-  //     if (existingImageUrls.length <= 1) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(
-  //           content:
-  //               Text(getTranslated(context, "At least one image is required.")),
-  //         ),
-  //       );
-  //       return; // Stop further execution
-  //     }
-  //
-  //     Reference ref = storage.refFromURL(imageUrl);
-  //     await ref.delete();
-  //
-  //     setState(() {
-  //       existingImageUrls.remove(imageUrl);
-  //     });
-  //
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(
-  //           content:
-  //               Text(getTranslated(context, "Image removed successfully"))),
-  //     );
-  //   } catch (e) {
-  //     print("Error removing image: $e");
-  //   }
-  // }
-  /// Remove a single image both from Storage and from your
-  /// RTDB ImageUrls list (must keep at least one image).
   Future<void> removeImage(String imageUrl) async {
     try {
       if (existingImageUrls.length <= 1) {
@@ -407,13 +403,9 @@ class _EditEstateState extends State<EditEstate> {
     }
   }
 
-  /// Upload any newly-picked images, compressing them first,
-  /// append their URLs to your in-memory list, then overwrite
-  /// the ImageUrls node in RTDB with the merged array.
   Future<void> saveUpdatedImages() async {
     if (newImageFiles.isEmpty) return;
 
-    // 1️⃣ Show the same “do not close app” progress dialog:
     final totalNew = newImageFiles.length;
     final progressNotifier = ValueNotifier<double>(0);
     showDialog(
@@ -441,7 +433,6 @@ class _EditEstateState extends State<EditEstate> {
     );
 
     try {
-      // 2️⃣ Figure out nextIndex from storage:
       final existingNames = await fetchExistingImages();
       int maxIdx = -1;
       for (var name in existingNames) {
@@ -452,7 +443,6 @@ class _EditEstateState extends State<EditEstate> {
 
       final List<String> uploadedUrls = [];
 
-      // 3️⃣ Upload each new image at full quality:
       for (var i = 0; i < newImageFiles.length; i++) {
         final file = File(newImageFiles[i].path);
         final fileName = '$nextIndex.jpg';
@@ -462,7 +452,6 @@ class _EditEstateState extends State<EditEstate> {
           SettableMetadata(contentType: 'image/jpeg'),
         );
 
-        // stream progress just like AddImage._uploadFileWithProgress
         task.snapshotEvents.listen((snap) {
           if (snap.totalBytes != 0) {
             final filePct = snap.bytesTransferred / snap.totalBytes!;
@@ -476,32 +465,31 @@ class _EditEstateState extends State<EditEstate> {
         nextIndex++;
       }
 
-      // 4️⃣ Merge into state and clear pending:
       setState(() {
         existingImageUrls.addAll(uploadedUrls);
         newImageFiles.clear();
       });
 
-      // 5️⃣ Overwrite your RTDB node:
       await _imageUrlsRef().set(existingImageUrls);
 
-      // 6️⃣ Dismiss progress & notify:
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content:
-              Text(getTranslated(context, "Images updated successfully"))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content:
+                Text(getTranslated(context, "Images updated successfully"))),
+      );
     } catch (e) {
       debugPrint("Error saving updated images: $e");
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(getTranslated(context, "Failed to update images"))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(getTranslated(context, "Failed to update images"))),
+      );
     }
   }
 
-  /// Upload new images to Firebase
   Future<List<String>> uploadNewImages() async {
     List<String> uploadedUrls = [];
-
     for (var image in newImageFiles) {
       try {
         Reference ref = storage.ref(
@@ -526,15 +514,11 @@ class _EditEstateState extends State<EditEstate> {
       for (var item in result.items) {
         existingImages.add(item.name);
       }
-
-      // Sort the images numerically
       existingImages.sort((a, b) {
         int numA = int.tryParse(a.split('.').first) ?? 0;
         int numB = int.tryParse(b.split('.').first) ?? 0;
         return numA.compareTo(numB);
       });
-
-      print("Existing images in storage: $existingImages");
       return existingImages;
     } catch (e) {
       print("Error fetching images: $e");
@@ -542,93 +526,15 @@ class _EditEstateState extends State<EditEstate> {
     }
   }
 
-  /// Save updated images to Firebase
   Future<File> compressImage(File image) async {
     final result = await FlutterImageCompress.compressWithFile(
       image.path,
-      minWidth: 800, // Adjust the width as per your requirement
-      minHeight: 600, // Adjust the height as per your requirement
-      quality: 80, // Compress quality (0 to 100)
+      minWidth: 800,
+      minHeight: 600,
+      quality: 80,
     );
-
     final compressedFile = File(image.path)..writeAsBytesSync(result!);
     return compressedFile;
-  }
-
-  // Future<void> saveUpdatedImages() async {
-  //   try {
-  //     // Show the custom loading dialog before the upload starts
-  //     showCustomLoadingDialog(context);
-  //
-  //     List<String> existingImages = await fetchExistingImages();
-  //     int nextIndex = existingImages.isNotEmpty
-  //         ? (int.tryParse(existingImages.last.split('.').first) ?? -1) + 1
-  //         : 0;
-  //
-  //     // Create a list of futures for concurrent uploads
-  //     List<Future<String>> uploadFutures = [];
-  //
-  //     for (var image in newImageFiles) {
-  //       File compressedImage =
-  //           await compressImage(File(image.path)); // Compress the image
-  //       String newFileName = "$nextIndex.jpg"; // Generate new name
-  //       final ref = FirebaseStorage.instance
-  //           .ref()
-  //           .child("${widget.estateId}/$newFileName");
-  //
-  //       // Add the upload task to the futures list
-  //       uploadFutures.add(ref.putFile(compressedImage).then((snapshot) {
-  //         return snapshot.ref
-  //             .getDownloadURL(); // Return download URL after upload
-  //       }));
-  //
-  //       nextIndex++; // Increment index for the next image
-  //     }
-  //
-  //     // Wait for all uploads to finish
-  //     List<String> uploadedUrls = await Future.wait(uploadFutures);
-  //
-  //     // Update UI with the new images URLs
-  //     setState(() {
-  //       newImageFiles.clear();
-  //     });
-  //
-  //     // Dismiss the loading dialog once the upload is complete
-  //     Navigator.pop(context);
-  //
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(
-  //           content:
-  //               Text(getTranslated(context, "Images updated successfully"))),
-  //     );
-  //   } catch (e) {
-  //     print("Error saving images: $e");
-  //
-  //     // Dismiss the loading dialog in case of error
-  //     Navigator.pop(context);
-  //
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(
-  //           content: Text(getTranslated(context, "Failed to update images"))),
-  //     );
-  //   }
-  // }
-
-  /// Method to open image picker
-  Future<void> openImages() async {
-    try {
-      var pickedfiles = await imgpicker.pickMultiImage();
-      // You can use ImagePicker.camera for Camera capture
-      if (pickedfiles != null && pickedfiles.isNotEmpty) {
-        imagefiles = pickedfiles;
-        print("Number of images selected: ${imagefiles?.length}");
-        setState(() {});
-      } else {
-        print("No image is selected.");
-      }
-    } catch (e) {
-      print("Error while picking file: $e");
-    }
   }
 
   void _showDeleteConfirmationDialog(BuildContext context, String estateId) {
@@ -654,7 +560,7 @@ class _EditEstateState extends State<EditEstate> {
             ),
             TextButton(
               onPressed: () async {
-                Navigator.of(context).pop(); // Close confirmation dialog
+                Navigator.of(context).pop();
                 showDialog(
                   context: context,
                   barrierDismissible: false,
@@ -669,7 +575,6 @@ class _EditEstateState extends State<EditEstate> {
 
                 await _deleteEstate(context, estateId);
 
-                // Dismiss the progress dialog
                 if (mounted) {
                   Navigator.of(context).pop();
                 }
@@ -689,7 +594,6 @@ class _EditEstateState extends State<EditEstate> {
     try {
       final dbRef = FirebaseDatabase.instance.ref();
 
-      // Delete feedback associated with the specific estate
       DatabaseEvent feedbackEvent =
           await dbRef.child("App/CustomerFeedback").once();
       if (feedbackEvent.snapshot.value != null) {
@@ -703,10 +607,8 @@ class _EditEstateState extends State<EditEstate> {
         }
       }
 
-      // Delete chats associated with the specific estate
       await dbRef.child("App/EstateChats/$estateId").remove();
 
-      // Delete the specific estate
       DatabaseEvent estateEvent = await dbRef.child("App/Estate").once();
       if (estateEvent.snapshot.value != null) {
         Map estates = estateEvent.snapshot.value as Map;
@@ -719,7 +621,6 @@ class _EditEstateState extends State<EditEstate> {
         }
       }
 
-      // Delete posts associated with the specific estate
       DatabaseEvent postsEvent = await dbRef.child("App/AllPosts").once();
       if (postsEvent.snapshot.value != null) {
         Map posts = postsEvent.snapshot.value as Map;
@@ -732,7 +633,6 @@ class _EditEstateState extends State<EditEstate> {
         }
       }
 
-      // Delete booking requests associated with the specific estate
       DatabaseEvent bookingEvent = await dbRef.child("App/Booking/Book").once();
       if (bookingEvent.snapshot.value != null) {
         Map bookings = bookingEvent.snapshot.value as Map;
@@ -745,7 +645,6 @@ class _EditEstateState extends State<EditEstate> {
         }
       }
 
-      // Navigate to the main screen content after successful deletion
       if (mounted) {
         Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const MainScreenContent()));
@@ -763,41 +662,26 @@ class _EditEstateState extends State<EditEstate> {
   }
 
   bool validateSelection() {
-    // Check if any required selections are made for the specific estate type
     if (widget.estateType == "3") {
-      // For restaurants, validate if restaurant types, entries, or sessions are selected
       if (selectedRestaurantTypes.isEmpty ||
           selectedEntries.isEmpty ||
           selectedEditSessionsType.isEmpty) {
-        return false; // If no selection made, return false
+        return false;
       }
     } else if (widget.estateType == "2") {
-      // For other estate types, just check entries and sessions
       if (selectedEntries.isEmpty || selectedEditSessionsType.isEmpty) {
-        return false; // If no selection made, return false
+        return false;
       }
     }
-    return true; // Return true if valid selections exist
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    // Determine estate type
-    String estateType = widget.objEstate['Type'] ?? "1"; // Default to "1"
+    String estateType = widget.objEstate['Type'] ?? "1";
     bool isLoading = existingImageUrls.isEmpty;
 
     return Scaffold(
-      // appBar: AppBar(
-      //   actions: [
-      //     IconButton(
-      //       icon: const Icon(Icons.delete, color: Colors.red),
-      //       onPressed: () {
-      //         _showDeleteConfirmationDialog(
-      //             context, widget.objEstate['IDEstate']);
-      //       },
-      //     ),
-      //   ],
-      // ),
       body: Stack(
         children: [
           Container(
@@ -813,7 +697,6 @@ class _EditEstateState extends State<EditEstate> {
                     SizedBox(height: 25),
                     TextHeader("Edit Estate Images"),
                     const SizedBox(height: 10),
-                    // Button to Pick New Images
 
                     Align(
                       alignment: Alignment.center,
@@ -821,27 +704,17 @@ class _EditEstateState extends State<EditEstate> {
                         children: [
                           IconButton(
                             onPressed: pickImages,
-                            icon: const Icon(
-                              Icons
-                                  .add_a_photo, // You can use a gallery or camera icon
-                              color:
-                                  kPurpleColor, // You can change this to any color that matches your design
-                              size: 28, // Adjust the size as needed
-                            ),
-                            tooltip: getTranslated(context,
-                                "Add New Images"), // Optional: tooltip for accessibility
-                            splashColor: kPurpleColor
-                                .withOpacity(0.2), // Optional: splash effect
-                            highlightColor: kPurpleColor
-                                .withOpacity(0.2), // Optional: highlight effect
+                            icon: const Icon(Icons.add_a_photo,
+                                color: kPurpleColor, size: 28),
+                            tooltip: getTranslated(context, "Add New Images"),
+                            splashColor: kPurpleColor.withOpacity(0.2),
+                            highlightColor: kPurpleColor.withOpacity(0.2),
                           ),
                           TextHeader("Add New Images"),
                         ],
                       ),
                     ),
 
-                    // Display Existing Images
-                    // Display Existing Images
                     if (existingImageUrls.isNotEmpty)
                       SizedBox(
                         height: 180,
@@ -893,22 +766,14 @@ class _EditEstateState extends State<EditEstate> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Shimmering Cloud Animation (Looks like an image loading)
-                              Icon(
-                                Icons.image,
-                                color:
-                                    kPurpleColor, // Use your preferred color here
-                                size: 80, // Adjust size as needed
-                              ),
+                              Icon(Icons.image, color: kPurpleColor, size: 80),
                               const SizedBox(height: 20),
-                              // Text that can be customized
                               Text(
                                 getTranslated(context, "Loading images..."),
                                 style: TextStyle(
                                     fontSize: 16, color: Colors.grey[600]),
                               ),
                               const SizedBox(height: 20),
-                              // Optional: More text for engaging message
                               Text(
                                 getTranslated(context,
                                     "Please wait while we fetch your images"),
@@ -920,10 +785,7 @@ class _EditEstateState extends State<EditEstate> {
                         ),
                       ),
 
-                    // Button to Pick New Images
-                    // Button to Pick New Images
                     10.kH,
-                    // Display Selected New Images
                     if (newImageFiles.isNotEmpty)
                       SizedBox(
                         height: 180,
@@ -969,22 +831,13 @@ class _EditEstateState extends State<EditEstate> {
                         ),
                       ),
 
-                    // Save Changes Button
-                    // const SizedBox(height: 10),
-                    // ElevatedButton(
-                    //   onPressed: saveUpdatedImages,
-                    //   child: Text(getTranslated(context, "Save Images")),
-                    // ),
                     TextHeader("Information in Arabic"),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: TextFormFieldStyle(
                         context: context,
                         hint: getTranslated(context, "Name"),
-                        icon: Icon(
-                          Icons.person,
-                          color: kPurpleColor,
-                        ),
+                        icon: const Icon(Icons.person, color: kPurpleColor),
                         control: arNameController,
                         readOnly: true,
                         isObsecured: false,
@@ -999,22 +852,19 @@ class _EditEstateState extends State<EditEstate> {
                         },
                       ),
                     ),
-
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: TextFormFieldStyle(
                         context: context,
                         hint: "Bio",
-                        icon: Icon(
-                          Icons.info,
-                          color: kPurpleColor,
-                        ),
+                        icon: const Icon(Icons.info, color: kPurpleColor),
                         control: arBioController,
                         isObsecured: false,
                         validate: true,
                         textInputType: TextInputType.multiline,
                       ),
                     ),
+
                     SizedBox(height: 40),
                     TextHeader("Information in English"),
                     Padding(
@@ -1022,10 +872,7 @@ class _EditEstateState extends State<EditEstate> {
                       child: TextFormFieldStyle(
                         context: context,
                         hint: getTranslated(context, "Name"),
-                        icon: Icon(
-                          Icons.person,
-                          color: kPurpleColor,
-                        ),
+                        icon: const Icon(Icons.person, color: kPurpleColor),
                         control: enNameController,
                         isObsecured: false,
                         validate: true,
@@ -1038,16 +885,14 @@ class _EditEstateState extends State<EditEstate> {
                       child: TextFormFieldStyle(
                         context: context,
                         hint: "Bio",
-                        icon: Icon(
-                          Icons.info,
-                          color: kPurpleColor,
-                        ),
+                        icon: const Icon(Icons.info, color: kPurpleColor),
                         control: enBioController,
                         isObsecured: false,
                         validate: true,
                         textInputType: TextInputType.multiline,
                       ),
                     ),
+
                     40.kH,
                     TextHeader("Branch in Arabic"),
                     Padding(
@@ -1055,10 +900,7 @@ class _EditEstateState extends State<EditEstate> {
                       child: TextFormFieldStyle(
                         context: context,
                         hint: "Branch in Arabic",
-                        icon: Icon(
-                          Icons.person,
-                          color: kPurpleColor,
-                        ),
+                        icon: const Icon(Icons.person, color: kPurpleColor),
                         control: arEstateBranchController,
                         isObsecured: false,
                         validate: true,
@@ -1072,6 +914,9 @@ class _EditEstateState extends State<EditEstate> {
                         },
                       ),
                     ),
+
+                    // METRO: header + summary + picker (visible only when City == Riyadh)
+
                     40.kH,
                     TextHeader("Branch in English"),
                     Padding(
@@ -1079,10 +924,7 @@ class _EditEstateState extends State<EditEstate> {
                       child: TextFormFieldStyle(
                         context: context,
                         hint: "Branch in English",
-                        icon: Icon(
-                          Icons.person,
-                          color: kPurpleColor,
-                        ),
+                        icon: const Icon(Icons.person, color: kPurpleColor),
                         control: enEstateBranchController,
                         isObsecured: false,
                         validate: true,
@@ -1096,6 +938,7 @@ class _EditEstateState extends State<EditEstate> {
                         },
                       ),
                     ),
+
                     SizedBox(height: 40),
                     if (estateType == "2" || estateType == "3") ...[
                       20.kH,
@@ -1106,7 +949,7 @@ class _EditEstateState extends State<EditEstate> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             ElevatedButton.icon(
-                              icon: Icon(Icons.map, color: kPurpleColor),
+                              icon: const Icon(Icons.map, color: kPurpleColor),
                               label: Text(_layoutId == null
                                   ? getTranslated(
                                       context, "Configure Floor Plan")
@@ -1146,7 +989,7 @@ class _EditEstateState extends State<EditEstate> {
                               Padding(
                                 padding: const EdgeInsets.only(top: 8.0),
                                 child: Text(
-                                  "${getTranslated(context, "Configured Layout ID:")} $_layoutId",
+                                  "${getTranslated(context, 'Configured Layout ID:')} $_layoutId",
                                   style: const TextStyle(color: Colors.green),
                                 ),
                               ),
@@ -1154,6 +997,7 @@ class _EditEstateState extends State<EditEstate> {
                         ),
                       ),
                     ],
+
                     40.kH,
                     TextHeader("Menu"),
                     Padding(
@@ -1161,16 +1005,14 @@ class _EditEstateState extends State<EditEstate> {
                       child: TextFormFieldStyle(
                         context: context,
                         hint: "Enter Menu Link",
-                        icon: Icon(
-                          Icons.person,
-                          color: kPurpleColor,
-                        ),
+                        icon: const Icon(Icons.person, color: kPurpleColor),
                         control: menuLinkController,
                         isObsecured: false,
                         validate: true,
                         textInputType: TextInputType.text,
                       ),
                     ),
+
                     40.kH,
                     TextHeader("Phone Number"),
                     Padding(
@@ -1178,23 +1020,15 @@ class _EditEstateState extends State<EditEstate> {
                       child: TextFormFieldStyle(
                         context: context,
                         hint: "Phone Number",
-                        icon: const Icon(
-                          Icons.phone_android_outlined,
-                          color: kPurpleColor,
-                        ),
+                        icon: const Icon(Icons.phone_android_outlined,
+                            color: kPurpleColor),
                         control: phoneNumberController,
                         isObsecured: false,
                         validate: true,
                         textInputType: TextInputType.text,
-                        validator: (value) {
-                          // if (value == null || value.trim().isEmpty) {
-                          //   return getTranslated(
-                          //       context, "Phone Number is missing");
-                          // }
-                          // return null;
-                        },
                       ),
                     ),
+
                     SizedBox(height: 20),
                     TextHeader("Edit Estate Location"),
                     EditLocationSection(
@@ -1210,15 +1044,112 @@ class _EditEstateState extends State<EditEstate> {
                     TextHeader("Location information"),
                     const SizedBox(height: 20),
                     ChooseCity(),
-                    Visibility(
-                      visible: estateType != "3",
-                      child: SizedBox(height: 40),
-                    ),
+                    40.kH,
+                    // TextHeader("Nearby Riyadh Metro (Optional)"),
 
-                    /// Display EntryVisibility for Type "2" and "3"
+                    // Summary of current choices
+                    if ((_metroCity.toLowerCase() == "riyadh") ||
+                        (cityValue?.toLowerCase() == "riyadh"))
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 8),
+                        child: Builder(
+                          builder: (_) {
+                            final chosenLines =
+                                _metro.chosenLinesLocalized(context);
+                            final totalStations =
+                                _metro.chosenStationsByLine.values.fold<int>(
+                                    0,
+                                    (p, v) =>
+                                        p + ((v is Iterable) ? v.length : 0));
+
+                            return Row(
+                              children: [
+                                const Icon(
+                                    Icons.directions_subway_filled_rounded,
+                                    color: Colors.deepPurple),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    chosenLines.isEmpty
+                                        ? getTranslated(
+                                            context, "No metro lines selected.")
+                                        : getTranslated(
+                                                context, "Selected Lines: ") +
+                                            chosenLines.join(" • ") +
+                                            "  —  " +
+                                            getTranslated(
+                                                context, "Stations: ") +
+                                            "$totalStations",
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+
+                    if ((_metroCity.toLowerCase() == "riyadh") ||
+                        (cityValue?.toLowerCase() == "riyadh"))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: RiyadhMetroPicker(
+                          controller: _metro,
+                          isVisible: true,
+                          onChanged: () => setState(() {}),
+                        ),
+                      ),
+
+                    if ((_metroCity.toLowerCase() == "riyadh") ||
+                        (cityValue?.toLowerCase() == "riyadh")) ...[
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Builder(
+                          builder: (_) {
+                            // ✅ Look at the raw controller state (lines + sets)
+                            final hasLineNoStations =
+                                _metro.selectedLines.entries.any(
+                              (e) =>
+                                  e.value &&
+                                  (_metro.selectedStationsByLine[e.key]
+                                          ?.isEmpty ??
+                                      true),
+                            );
+
+                            if (!hasLineNoStations)
+                              return const SizedBox.shrink();
+
+                            return Row(
+                              children: [
+                                const Icon(Icons.warning_amber_rounded,
+                                    size: 18, color: Colors.orange),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    getTranslated(context,
+                                        "You selected a metro line but no stations."),
+                                    style: const TextStyle(
+                                        fontSize: 12, color: Colors.orange),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                    Visibility(
+                        visible: estateType != "3",
+                        child: const SizedBox(height: 40)),
+
                     if (estateType == "2" || estateType == "3")
                       EditEntryVisibility(
-                        isVisible: estateType == "2" || estateType == "3",
+                        isVisible: true,
                         initialSelectedEntries: selectedEntries,
                         onCheckboxChanged: (bool isChecked, String label) {
                           setState(() {
@@ -1234,7 +1165,7 @@ class _EditEstateState extends State<EditEstate> {
                       ),
                     if (estateType == "2" || estateType == "3")
                       EditSessionsType(
-                        isVisible: estateType == "2" || estateType == "3",
+                        isVisible: true,
                         initialSelectedEntries: selectedEditSessionsType,
                         onCheckboxChanged: (bool isChecked, String label) {
                           setState(() {
@@ -1250,7 +1181,7 @@ class _EditEstateState extends State<EditEstate> {
                       ),
                     if (estateType == "2" || estateType == "3")
                       EditAdditionals(
-                        isVisible: estateType == "2" || estateType == "3",
+                        isVisible: true,
                         initialSelectedEntries: selectedEditAdditionalsType,
                         onCheckboxChanged: (bool isChecked, String label) {
                           setState(() {
@@ -1266,24 +1197,19 @@ class _EditEstateState extends State<EditEstate> {
                         },
                       ),
 
-                    /// Display Music Services based on Type
                     if (estateType == "2") ...[
-                      // For Type "2" (Coffee), allow additional music options
                       EditCoffeeMusicServices(
                         isVisible: true,
                         initialSelectedEntries: isMusicSelected
-                            ? lstMusicCoffee.isNotEmpty
+                            ? (lstMusicCoffee.isNotEmpty
                                 ? ["Is there music", ...lstMusicCoffee]
-                                : []
+                                : [])
                             : [],
                         onCheckboxChanged: (bool isChecked, String label) {
                           setState(() {
                             if (label == "Is there music") {
                               isMusicSelected = isChecked;
-                              if (!isChecked) {
-                                lstMusicCoffee
-                                    .clear(); // Clear music list if disabled
-                              }
+                              if (!isChecked) lstMusicCoffee.clear();
                             } else {
                               if (isChecked) {
                                 lstMusicCoffee.add(label);
@@ -1295,10 +1221,9 @@ class _EditEstateState extends State<EditEstate> {
                         },
                       ),
                     ] else if (estateType == "1" || estateType == "3") ...[
-                      // For Type "1" (Hotel) and Type "3" (Restaurant), only show "Is there music"
                       EditMusicServices(
                         isVisible: true,
-                        allowAdditionalOptions: false, // Disable extra options
+                        allowAdditionalOptions: false,
                         initialSelectedEntries:
                             isMusicSelected ? ["Is there music"] : [],
                         onCheckboxChanged: (bool isChecked, String label) {
@@ -1311,11 +1236,10 @@ class _EditEstateState extends State<EditEstate> {
                       ),
                     ],
 
-                    /// Display RestaurantTypeVisibility for Type "3"
-                    if (estateType == "3") SizedBox(height: 40),
+                    if (estateType == "3") const SizedBox(height: 40),
                     if (estateType == "3")
                       EditRestaurantTypeVisibility(
-                        isVisible: estateType == "3",
+                        isVisible: true,
                         initialSelectedTypes: selectedRestaurantTypes,
                         onCheckboxChanged: (bool isChecked, String label) {
                           setState(() {
@@ -1330,9 +1254,8 @@ class _EditEstateState extends State<EditEstate> {
                         },
                       ),
 
-                    SizedBox(height: 40),
+                    const SizedBox(height: 40),
 
-                    /// Add the EditKidsArea widget
                     EditKidsArea(
                       isVisible: true,
                       hasKidsArea: hasKidsArea,
@@ -1396,14 +1319,13 @@ class _EditEstateState extends State<EditEstate> {
                         ],
                       ),
                     ),
+
                     40.kH,
                     Visibility(
                       visible: estateType == "3" || estateType == "2",
                       child: Column(
                         children: [
-                          TextHeader(
-                            "Smoking Area?",
-                          ),
+                          TextHeader("Smoking Area?"),
                           EditSmokingArea(
                             isVisible: true,
                             hasSmokingArea: isSmokingAllowed,
@@ -1417,12 +1339,10 @@ class _EditEstateState extends State<EditEstate> {
                       ),
                     ),
 
-                    SizedBox(height: 40),
+                    const SizedBox(height: 40),
                     Column(
                       children: [
-                        TextHeader(
-                          "Valet Options",
-                        ),
+                        TextHeader("Valet Options"),
                         EditValetOptions(
                           isVisible: true,
                           hasValet: hasValet,
@@ -1430,9 +1350,7 @@ class _EditEstateState extends State<EditEstate> {
                           onCheckboxChanged: (bool isChecked) {
                             setState(() {
                               hasValet = isChecked;
-                              if (!hasValet) {
-                                valetWithFees = false;
-                              }
+                              if (!hasValet) valetWithFees = false;
                             });
                           },
                           onValetFeesChanged: (bool isChecked) {
@@ -1443,14 +1361,14 @@ class _EditEstateState extends State<EditEstate> {
                         ),
                       ],
                     ),
-                    40.kH,
 
+                    40.kH,
                     Visibility(
                       visible: estateType == "1",
                       child: Column(
                         children: [
                           TextHeader(getTranslated(context, "What We have ?")),
-                          // Single Room
+                          // Single
                           Visibility(
                             visible: !single,
                             child: Container(
@@ -1462,7 +1380,7 @@ class _EditEstateState extends State<EditEstate> {
                                 children: [
                                   Text(
                                     getTranslated(context, "Single"),
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 16,
                                         color: Colors.black),
@@ -1480,7 +1398,7 @@ class _EditEstateState extends State<EditEstate> {
                               ),
                             ),
                           ),
-                          // Single Room Details
+                          // Single details
                           Visibility(
                             visible: single,
                             child: Row(
@@ -1498,10 +1416,8 @@ class _EditEstateState extends State<EditEstate> {
                                         TextFormFieldStyle(
                                           context: context,
                                           hint: getTranslated(context, "Price"),
-                                          icon: Icon(
-                                            Icons.attach_money,
-                                            color: kPurpleColor,
-                                          ),
+                                          icon: const Icon(Icons.attach_money,
+                                              color: kPurpleColor),
                                           control: singleController,
                                           isObsecured: false,
                                           validate: true,
@@ -1510,10 +1426,8 @@ class _EditEstateState extends State<EditEstate> {
                                         TextFormFieldStyle(
                                           context: context,
                                           hint: getTranslated(context, "Bio"),
-                                          icon: Icon(
-                                            Icons.info,
-                                            color: kPurpleColor,
-                                          ),
+                                          icon: const Icon(Icons.info,
+                                              color: kPurpleColor),
                                           control: arBioSingleController,
                                           isObsecured: false,
                                           validate: true,
@@ -1522,10 +1436,8 @@ class _EditEstateState extends State<EditEstate> {
                                         TextFormFieldStyle(
                                           context: context,
                                           hint: getTranslated(context, "BioEn"),
-                                          icon: Icon(
-                                            Icons.info,
-                                            color: kPurpleColor,
-                                          ),
+                                          icon: const Icon(Icons.info,
+                                              color: kPurpleColor),
                                           control: enBioSingleController,
                                           isObsecured: false,
                                           validate: true,
@@ -1535,16 +1447,18 @@ class _EditEstateState extends State<EditEstate> {
                                     ),
                                   ),
                                 ),
-                                Expanded(child: closeTextFormFieldStyle(() {
-                                  setState(() {
-                                    single = false;
-                                  });
-                                }))
+                                Expanded(
+                                  child: closeTextFormFieldStyle(() {
+                                    setState(() {
+                                      single = false;
+                                    });
+                                  }),
+                                ),
                               ],
                             ),
                           ),
-                          // Repeat similar Visibility widgets for Double, Suite, Family
-                          // Double Room
+
+                          // Double
                           Visibility(
                             visible: !doubleRoom,
                             child: Container(
@@ -1556,7 +1470,7 @@ class _EditEstateState extends State<EditEstate> {
                                 children: [
                                   Text(
                                     getTranslated(context, "Double"),
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 16,
                                         color: Colors.black),
@@ -1574,7 +1488,6 @@ class _EditEstateState extends State<EditEstate> {
                               ),
                             ),
                           ),
-                          // Double Room Details
                           Visibility(
                             visible: doubleRoom,
                             child: Row(
@@ -1592,10 +1505,8 @@ class _EditEstateState extends State<EditEstate> {
                                         TextFormFieldStyle(
                                           context: context,
                                           hint: getTranslated(context, "Price"),
-                                          icon: Icon(
-                                            Icons.attach_money,
-                                            color: kPurpleColor,
-                                          ),
+                                          icon: const Icon(Icons.attach_money,
+                                              color: kPurpleColor),
                                           control: doubleController,
                                           isObsecured: false,
                                           validate: true,
@@ -1604,10 +1515,8 @@ class _EditEstateState extends State<EditEstate> {
                                         TextFormFieldStyle(
                                           context: context,
                                           hint: getTranslated(context, "Bio"),
-                                          icon: Icon(
-                                            Icons.info,
-                                            color: kPurpleColor,
-                                          ),
+                                          icon: const Icon(Icons.info,
+                                              color: kPurpleColor),
                                           control: arBioDoubleController,
                                           isObsecured: false,
                                           validate: true,
@@ -1616,10 +1525,8 @@ class _EditEstateState extends State<EditEstate> {
                                         TextFormFieldStyle(
                                           context: context,
                                           hint: getTranslated(context, "BioEn"),
-                                          icon: Icon(
-                                            Icons.info,
-                                            color: kPurpleColor,
-                                          ),
+                                          icon: const Icon(Icons.info,
+                                              color: kPurpleColor),
                                           control: enBioDoubleController,
                                           isObsecured: false,
                                           validate: true,
@@ -1629,15 +1536,18 @@ class _EditEstateState extends State<EditEstate> {
                                     ),
                                   ),
                                 ),
-                                Expanded(child: closeTextFormFieldStyle(() {
-                                  setState(() {
-                                    doubleRoom = false;
-                                  });
-                                }))
+                                Expanded(
+                                  child: closeTextFormFieldStyle(() {
+                                    setState(() {
+                                      doubleRoom = false;
+                                    });
+                                  }),
+                                ),
                               ],
                             ),
                           ),
-                          // Suite Room
+
+                          // Suite
                           Visibility(
                             visible: !suite,
                             child: Container(
@@ -1649,7 +1559,7 @@ class _EditEstateState extends State<EditEstate> {
                                 children: [
                                   Text(
                                     getTranslated(context, "Suite"),
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 16,
                                         color: Colors.black),
@@ -1667,7 +1577,6 @@ class _EditEstateState extends State<EditEstate> {
                               ),
                             ),
                           ),
-                          // Suite Room Details
                           Visibility(
                             visible: suite,
                             child: Row(
@@ -1685,10 +1594,8 @@ class _EditEstateState extends State<EditEstate> {
                                         TextFormFieldStyle(
                                           context: context,
                                           hint: getTranslated(context, "Price"),
-                                          icon: Icon(
-                                            Icons.attach_money,
-                                            color: kPurpleColor,
-                                          ),
+                                          icon: const Icon(Icons.attach_money,
+                                              color: kPurpleColor),
                                           control: suiteController,
                                           isObsecured: false,
                                           validate: true,
@@ -1697,10 +1604,8 @@ class _EditEstateState extends State<EditEstate> {
                                         TextFormFieldStyle(
                                           context: context,
                                           hint: getTranslated(context, "Bio"),
-                                          icon: Icon(
-                                            Icons.info,
-                                            color: kPurpleColor,
-                                          ),
+                                          icon: const Icon(Icons.info,
+                                              color: kPurpleColor),
                                           control: arBioSuiteController,
                                           isObsecured: false,
                                           validate: true,
@@ -1709,10 +1614,8 @@ class _EditEstateState extends State<EditEstate> {
                                         TextFormFieldStyle(
                                           context: context,
                                           hint: getTranslated(context, "BioEn"),
-                                          icon: Icon(
-                                            Icons.info,
-                                            color: kPurpleColor,
-                                          ),
+                                          icon: const Icon(Icons.info,
+                                              color: kPurpleColor),
                                           control: enBioSuiteController,
                                           isObsecured: false,
                                           validate: true,
@@ -1722,15 +1625,18 @@ class _EditEstateState extends State<EditEstate> {
                                     ),
                                   ),
                                 ),
-                                Expanded(child: closeTextFormFieldStyle(() {
-                                  setState(() {
-                                    suite = false;
-                                  });
-                                }))
+                                Expanded(
+                                  child: closeTextFormFieldStyle(() {
+                                    setState(() {
+                                      suite = false;
+                                    });
+                                  }),
+                                ),
                               ],
                             ),
                           ),
-                          // Family Room
+
+                          // Family
                           Visibility(
                             visible: !family,
                             child: Container(
@@ -1742,7 +1648,7 @@ class _EditEstateState extends State<EditEstate> {
                                 children: [
                                   Text(
                                     getTranslated(context, "Family"),
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 16,
                                         color: Colors.black),
@@ -1760,7 +1666,6 @@ class _EditEstateState extends State<EditEstate> {
                               ),
                             ),
                           ),
-                          // Family Room Details
                           Visibility(
                             visible: family,
                             child: Row(
@@ -1778,10 +1683,8 @@ class _EditEstateState extends State<EditEstate> {
                                         TextFormFieldStyle(
                                           context: context,
                                           hint: getTranslated(context, "Price"),
-                                          icon: Icon(
-                                            Icons.attach_money,
-                                            color: kPurpleColor,
-                                          ),
+                                          icon: const Icon(Icons.attach_money,
+                                              color: kPurpleColor),
                                           control: familyController,
                                           isObsecured: false,
                                           validate: true,
@@ -1790,10 +1693,8 @@ class _EditEstateState extends State<EditEstate> {
                                         TextFormFieldStyle(
                                           context: context,
                                           hint: getTranslated(context, "Bio"),
-                                          icon: Icon(
-                                            Icons.info,
-                                            color: kPurpleColor,
-                                          ),
+                                          icon: const Icon(Icons.info,
+                                              color: kPurpleColor),
                                           control: arBioFamilyController,
                                           isObsecured: false,
                                           validate: true,
@@ -1802,10 +1703,8 @@ class _EditEstateState extends State<EditEstate> {
                                         TextFormFieldStyle(
                                           context: context,
                                           hint: getTranslated(context, "BioEn"),
-                                          icon: Icon(
-                                            Icons.info,
-                                            color: kPurpleColor,
-                                          ),
+                                          icon: const Icon(Icons.info,
+                                              color: kPurpleColor),
                                           control: enBioFamilyController,
                                           isObsecured: false,
                                           validate: true,
@@ -1815,201 +1714,28 @@ class _EditEstateState extends State<EditEstate> {
                                     ),
                                   ),
                                 ),
-                                Expanded(child: closeTextFormFieldStyle(() {
-                                  setState(() {
-                                    family = false;
-                                  });
-                                }))
+                                Expanded(
+                                  child: closeTextFormFieldStyle(() {
+                                    setState(() {
+                                      family = false;
+                                    });
+                                  }),
+                                ),
                               ],
                             ),
                           ),
 
-                          SizedBox(
-                            height: 50,
-                          ),
+                          const SizedBox(height: 50),
                         ],
                       ),
                     ),
-                    SizedBox(
-                      height: 30,
-                    ),
+
+                    const SizedBox(height: 30),
                   ],
                 ),
               ),
             ),
           ),
-
-          /// Additional sections can go here...
-
-          // Align(
-          //   alignment: Alignment.bottomCenter,
-          //   child: Row(
-          //     children: [
-          //       Expanded(
-          //         flex: 3,
-          //         child: InkWell(
-          //           child: Container(
-          //             width: 150.w,
-          //             height: 6.h,
-          //             margin: const EdgeInsets.only(
-          //                 right: 20, left: 20, bottom: 20),
-          //             decoration: BoxDecoration(
-          //               color: kPurpleColor,
-          //               borderRadius: BorderRadius.circular(12),
-          //             ),
-          //             child: Center(
-          //               child: Text(
-          //                 getTranslated(context, "Save"),
-          //                 style: const TextStyle(color: Colors.white),
-          //               ),
-          //             ),
-          //           ),
-          //           onTap: () async {
-          //             // 1️⃣ Validate entries & form
-          //             bool isEntryValid = validateSelection();
-          //             if (!isEntryValid) {
-          //               showDialog(
-          //                 context: context,
-          //                 builder: (_) => const FailureDialog(
-          //                   text: "Incomplete Entry",
-          //                   text1: "Select at least 1!",
-          //                 ),
-          //               );
-          //               return;
-          //             }
-          //             if (!_formKey.currentState!.validate()) return;
-          //
-          //             // 2️⃣ Determine estate type
-          //             String estateType = widget.objEstate['Type'] ?? "1";
-          //
-          //             // 3️⃣ Detect any changes
-          //             bool changesMade = false;
-          //
-          //             // — Compare text & location fields
-          //             if (arNameController.text !=
-          //                     (widget.objEstate["NameAr"] ?? '') ||
-          //                 arEstateBranchController.text !=
-          //                     (widget.objEstate["BranchAr"] ?? '') ||
-          //                 phoneNumberController.text !=
-          //                     (widget.objEstate["EstatePhoneNumber"] ?? '') ||
-          //                 enEstateBranchController.text !=
-          //                     (widget.objEstate["BranchEn"] ?? '') ||
-          //                 enNameController.text !=
-          //                     (widget.objEstate["NameEn"] ?? '') ||
-          //                 arBioController.text !=
-          //                     (widget.objEstate["BioAr"] ?? '') ||
-          //                 enBioController.text !=
-          //                     (widget.objEstate["BioEn"] ?? '') ||
-          //                 menuLinkController.text !=
-          //                     (widget.objEstate["MenuLink"] ?? '') ||
-          //                 countryValue != (widget.objEstate["Country"] ?? '') ||
-          //                 cityValue != (widget.objEstate["City"] ?? '') ||
-          //                 stateValue != (widget.objEstate["State"] ?? '') ||
-          //                 _editedLocation.latitude !=
-          //                     double.tryParse(
-          //                         widget.objEstate["Lat"].toString()) ||
-          //                 _editedLocation.longitude !=
-          //                     double.tryParse(
-          //                         widget.objEstate["Lon"].toString())) {
-          //               changesMade = true;
-          //             }
-          //
-          //             // — Compare lists & booleans
-          //             if ((estateType == "3" &&
-          //                     selectedRestaurantTypes.join(",") !=
-          //                         (widget.objEstate["TypeofRestaurant"] ??
-          //                             '')) ||
-          //                 (selectedEntries.join(",") !=
-          //                     (widget.objEstate["Entry"] ?? '')) ||
-          //                 ((estateType == "2" || estateType == "3") &&
-          //                     selectedEditSessionsType.join(",") !=
-          //                         (widget.objEstate["Sessions"] ?? '')) ||
-          //                 ((estateType == "2" || estateType == "3") &&
-          //                     selectedEditAdditionalsType.join(",") !=
-          //                         (widget.objEstate["additionals"] ?? '')) ||
-          //                 ((isMusicSelected ? "1" : "0") !=
-          //                     (widget.objEstate["Music"] ?? "0")) ||
-          //                 (lstMusicCoffee.join(",") !=
-          //                     (widget.objEstate["Lstmusic"] ?? '')) ||
-          //                 ((hasKidsArea ? "1" : "0") !=
-          //                     (widget.objEstate["HasKidsArea"] ?? "0")) ||
-          //                 ((hasSwimmingPoolSelected ? "1" : "0") !=
-          //                     (widget.objEstate["HasSwimmingPool"] ?? "0")) ||
-          //                 ((hasBarberSelected ? "1" : "0") !=
-          //                     (widget.objEstate["HasBarber"] ?? "0")) ||
-          //                 ((hasGymSelected ? "1" : "0") !=
-          //                     (widget.objEstate["HasGym"] ?? "0")) ||
-          //                 ((hasJacuzziSelected ? "1" : "0") !=
-          //                     (widget.objEstate["HasJacuzziInRoom"] ?? "0")) ||
-          //                 ((hasMassageSelected ? "1" : "0") !=
-          //                     (widget.objEstate["HasMassage"] ?? "0")) ||
-          //                 ((isSmokingAllowed ? "1" : "0") !=
-          //                     (widget.objEstate["IsSmokingAllowed"] ?? "0")) ||
-          //                 ((hasValet ? "1" : "0") !=
-          //                     (widget.objEstate["HasValet"] ?? "0")) ||
-          //                 ((valetWithFees ? "1" : "0") !=
-          //                     (widget.objEstate["ValetWithFees"] ?? "0"))) {
-          //               changesMade = true;
-          //             }
-          //
-          //             // — New images?
-          //             if (newImageFiles.isNotEmpty) changesMade = true;
-          //
-          //             // — Reconfigured floor plan?
-          //             if (_pendingLayout != null) changesMade = true;
-          //
-          //             // 4️⃣ If anything changed, do updates & uploads
-          //             if (changesMade) {
-          //               // Update main estate fields
-          //               await Update();
-          //
-          //               // Upload new photos
-          //               if (newImageFiles.isNotEmpty) {
-          //                 await saveUpdatedImages();
-          //               }
-          //
-          //               // Upload floor plan if reconfigured
-          //               if (_pendingLayout != null) {
-          //                 final childType =
-          //                     estateType == "2" ? "Coffee" : "Restaurant";
-          //                 await backendService.uploadAutoCadLayout(
-          //                   childType: childType,
-          //                   estateId: widget.estateId,
-          //                   layout: _pendingLayout!,
-          //                 );
-          //               }
-          //
-          //               // Show success
-          //               await showDialog(
-          //                 context: context,
-          //                 builder: (_) => const SuccessDialog(
-          //                   text: "Success",
-          //                   text1: "Your estate has been successfully updated.",
-          //                 ),
-          //               );
-          //
-          //               // Navigate back
-          //               if (estateType == "2" || estateType == "3") {
-          //                 Navigator.of(context).popUntil((r) => r.isFirst);
-          //               }
-          //             } else {
-          //               // No changes
-          //               await showDialog(
-          //                 context: context,
-          //                 builder: (_) => const FailureDialog(
-          //                   text: "No Changes Detected",
-          //                   text1:
-          //                       "You did not make any changes to your estate.",
-          //                 ),
-          //               );
-          //             }
-          //           },
-          //         ),
-          //       ),
-          //     ],
-          //   ),
-          // ),
-
           Align(
             alignment: Alignment.bottomCenter,
             child: Row(
@@ -2017,170 +1743,275 @@ class _EditEstateState extends State<EditEstate> {
                 Expanded(
                   flex: 3,
                   child: InkWell(
-                    child: Container(
-                      width: 150.w,
-                      height: 6.h,
-                      margin: const EdgeInsets.only(
-                          right: 20, left: 20, bottom: 20),
-                      decoration: BoxDecoration(
-                        color: kPurpleColor,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Center(
-                        child: Text(
-                          getTranslated(context, "Save"),
-                          style: const TextStyle(color: Colors.white),
+                      child: Container(
+                        width: 150.w,
+                        height: 6.h,
+                        margin: const EdgeInsets.only(
+                            right: 20, left: 20, bottom: 20),
+                        decoration: BoxDecoration(
+                          color: kPurpleColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Text(
+                            getTranslated(context, "Save"),
+                            style: const TextStyle(color: Colors.white),
+                          ),
                         ),
                       ),
-                    ),
-                    onTap: () async {
-                      // First check if the entry validation is successful
-                      bool isEntryValid =
-                          validateSelection(); // Check if any entry is selected
+                      onTap: () async {
+                        // Required selections
+                        bool isEntryValid = validateSelection();
+                        if (!isEntryValid) {
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return const FailureDialog(
+                                text: "Incomplete Entry",
+                                text1: "Select at least 1!",
+                              );
+                            },
+                          );
+                          return;
+                        }
+                        if (!_formKey.currentState!.validate()) return;
 
-                      if (!isEntryValid) {
-                        // Show validation message for required selection
-                        showDialog(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return const FailureDialog(
-                              text: "Incomplete Entry",
-                              text1: "Select at least 1!",
-                            );
-                          },
+                        // ===== Determine Riyadh-ness from the ESTATE CITY (not _metroCity) =====
+                        final String nowCity =
+                            ((cityValue ?? widget.objEstate["City"]) ?? "")
+                                .toString()
+                                .trim();
+                        final String wasCity =
+                            ((widget.objEstate["City"]) ?? "")
+                                .toString()
+                                .trim();
+
+                        final bool cityIsRiyadhNow =
+                            nowCity.toLowerCase() == "riyadh";
+                        final bool cityWasRiyadh =
+                            wasCity.toLowerCase() == "riyadh";
+
+                        // ===== Metro "selection incomplete" dialog (same as AddEstates) =====
+                        final List<String> selectedLines = _metro.chosenLines;
+
+                        final bool hasPartialMetroSelection =
+                            _metro.selectedLines.entries.any(
+                          (e) =>
+                              e.value &&
+                              (_metro.selectedStationsByLine[e.key]?.isEmpty ??
+                                  true),
                         );
-                        return; // Prevent further action if validation fails
-                      }
-                      if (!_formKey.currentState!.validate()) {
-                        // If any field is invalid, stop here.
-                        return;
-                      }
 
-                      // Determine the current estate type
-                      String estateType =
-                          widget.objEstate['Type'] ?? "1"; // Default to "1"
+                        if (cityIsRiyadhNow &&
+                            selectedLines.isNotEmpty &&
+                            hasPartialMetroSelection) {
+                          final proceed = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: Text(getTranslated(
+                                  context, "Metro selection incomplete")),
+                              content: Text(
+                                getTranslated(context,
+                                        "You selected at least one metro line but did not choose any station on it.") +
+                                    "\n\n" +
+                                    getTranslated(context,
+                                        "Do you want to continue without saving any Metro info?"),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(ctx)
+                                        .pop(false); // go back to fix
+                                  },
+                                  child: Text(getTranslated(
+                                      context, "Choose stations")),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.of(ctx)
+                                        .pop(true); // proceed without metro
+                                  },
+                                  child:
+                                      Text(getTranslated(context, "Continue")),
+                                ),
+                              ],
+                            ),
+                          );
 
-                      // Step 1: Check if any estate fields were changed
-                      bool changesMade = false;
+                          if (proceed != true) {
+                            // Stop saving; let the user fix their metro selection
+                            return;
+                          } else {
+                            // Proceed but skip Metro entirely
+                            _metro.selectedLines.clear();
+                            _metro.selectedStationsByLine.clear();
+                          }
+                        }
+                        // ===== END Metro dialog =====
 
-                      // Compare simple text and location fields
-                      if (arNameController.text !=
-                              (widget.objEstate["NameAr"] ?? '') ||
-                          arEstateBranchController.text !=
-                              (widget.objEstate["BranchAr"] ?? '') ||
-                          phoneNumberController.text !=
-                              (widget.objEstate["EstatePhoneNumber"] ?? '') ||
-                          enEstateBranchController.text !=
-                              (widget.objEstate["BranchEn"] ?? '') ||
-                          enNameController.text !=
-                              (widget.objEstate["NameEn"] ?? '') ||
-                          arBioController.text !=
-                              (widget.objEstate["BioAr"] ?? '') ||
-                          enBioController.text !=
-                              (widget.objEstate["BioEn"] ?? '') ||
-                          menuLinkController.text !=
-                              (widget.objEstate["MenuLink"] ?? '') ||
-                          countryValue != (widget.objEstate["Country"] ?? '') ||
-                          cityValue != (widget.objEstate["City"] ?? '') ||
-                          stateValue != (widget.objEstate["State"] ?? '') ||
-                          _editedLocation.latitude !=
-                              double.tryParse(
-                                  widget.objEstate["Lat"].toString()) ||
-                          _editedLocation.longitude !=
-                              double.tryParse(
-                                  widget.objEstate["Lon"].toString())) {
-                        changesMade = true;
-                      }
+                        // Determine estate type
+                        String estateType = widget.objEstate['Type'] ?? "1";
 
-                      // Compare list and boolean fields relevant for all estate types
-                      if ((estateType == "3" &&
-                              selectedRestaurantTypes.join(",") !=
-                                  (widget.objEstate["TypeofRestaurant"] ??
-                                      '')) ||
-                          (selectedEntries.join(",") !=
-                              (widget.objEstate["Entry"] ?? '')) ||
-                          ((estateType == "2" || estateType == "3") &&
-                              selectedEditSessionsType.join(",") !=
-                                  (widget.objEstate["Sessions"] ?? '')) ||
-                          ((estateType == "2" || estateType == "3") &&
-                              selectedEditAdditionalsType.join(",") !=
-                                  (widget.objEstate["additionals"] ?? '')) ||
-                          ((isMusicSelected ? "1" : "0") !=
-                              (widget.objEstate["Music"] ?? "0")) ||
-                          (lstMusicCoffee.join(",") !=
-                              (widget.objEstate["Lstmusic"] ?? '')) ||
-                          ((hasKidsArea ? "1" : "0") !=
-                              (widget.objEstate["HasKidsArea"] ?? "0")) ||
-                          ((hasSwimmingPoolSelected ? "1" : "0") !=
-                              (widget.objEstate["HasSwimmingPool"] ?? "0")) ||
-                          ((hasBarberSelected ? "1" : "0") !=
-                              (widget.objEstate["HasBarber"] ?? "0")) ||
-                          ((hasGymSelected ? "1" : "0") !=
-                              (widget.objEstate["HasGym"] ?? "0")) ||
-                          ((hasJacuzziSelected ? "1" : "0") !=
-                              (widget.objEstate["HasJacuzziInRoom"] ?? "0")) ||
-                          ((hasMassageSelected ? "1" : "0") !=
-                              (widget.objEstate["HasMassage"] ?? "0")) ||
-                          ((isSmokingAllowed ? "1" : "0") !=
-                              (widget.objEstate["IsSmokingAllowed"] ?? "0")) ||
-                          ((hasValet ? "1" : "0") !=
-                              (widget.objEstate["HasValet"] ?? "0")) ||
-                          ((valetWithFees ? "1" : "0") !=
-                              (widget.objEstate["ValetWithFees"] ?? "0"))) {
-                        changesMade = true;
-                      }
+                        // Step 1: detect any changes (non-metro)
+                        bool changesMade = false;
 
-                      // Check if new images were added
-                      if (newImageFiles.isNotEmpty) {
-                        changesMade =
-                            true; // Mark as changes made if new images are added
-                      }
-
-                      // Step 2: Show appropriate dialog based on changes
-                      if (changesMade) {
-                        // If changes detected, update the estate
-                        await Update();
-
-                        // Upload new images if any are selected
-                        if (newImageFiles.isNotEmpty) {
-                          await saveUpdatedImages(); // Upload the new images
+                        if (arNameController.text !=
+                                (widget.objEstate["NameAr"] ?? '') ||
+                            arEstateBranchController.text !=
+                                (widget.objEstate["BranchAr"] ?? '') ||
+                            phoneNumberController.text !=
+                                (widget.objEstate["EstatePhoneNumber"] ?? '') ||
+                            enEstateBranchController.text !=
+                                (widget.objEstate["BranchEn"] ?? '') ||
+                            enNameController.text !=
+                                (widget.objEstate["NameEn"] ?? '') ||
+                            arBioController.text !=
+                                (widget.objEstate["BioAr"] ?? '') ||
+                            enBioController.text !=
+                                (widget.objEstate["BioEn"] ?? '') ||
+                            menuLinkController.text !=
+                                (widget.objEstate["MenuLink"] ?? '') ||
+                            countryValue !=
+                                (widget.objEstate["Country"] ?? '') ||
+                            cityValue != (widget.objEstate["City"] ?? '') ||
+                            stateValue != (widget.objEstate["State"] ?? '') ||
+                            _editedLocation.latitude !=
+                                double.tryParse(
+                                    widget.objEstate["Lat"].toString()) ||
+                            _editedLocation.longitude !=
+                                double.tryParse(
+                                    widget.objEstate["Lon"].toString())) {
+                          changesMade = true;
                         }
 
-                        // Show success dialog
-                        await showDialog(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return const SuccessDialog(
-                              text: "Success",
-                              text1:
-                                  "Your estate has been successfully updated.",
-                            );
-                          },
-                        );
-
-                        // Navigate based on estate type after success
-                        if (estateType == "2") {
-                          Navigator.of(context)
-                              .popUntil((route) => route.isFirst);
-                        } else if (estateType == "3") {
-                          Navigator.of(context)
-                              .popUntil((route) => route.isFirst);
+                        if ((estateType == "3" &&
+                                selectedRestaurantTypes.join(",") !=
+                                    (widget.objEstate["TypeofRestaurant"] ??
+                                        '')) ||
+                            (selectedEntries.join(",") !=
+                                (widget.objEstate["Entry"] ?? '')) ||
+                            ((estateType == "2" || estateType == "3") &&
+                                selectedEditSessionsType.join(",") !=
+                                    (widget.objEstate["Sessions"] ?? '')) ||
+                            ((estateType == "2" || estateType == "3") &&
+                                selectedEditAdditionalsType.join(",") !=
+                                    (widget.objEstate["additionals"] ?? '')) ||
+                            ((isMusicSelected ? "1" : "0") !=
+                                (widget.objEstate["Music"] ?? "0")) ||
+                            (lstMusicCoffee.join(",") !=
+                                (widget.objEstate["Lstmusic"] ?? '')) ||
+                            ((hasKidsArea ? "1" : "0") !=
+                                (widget.objEstate["HasKidsArea"] ?? "0")) ||
+                            ((hasSwimmingPoolSelected ? "1" : "0") !=
+                                (widget.objEstate["HasSwimmingPool"] ?? "0")) ||
+                            ((hasBarberSelected ? "1" : "0") !=
+                                (widget.objEstate["HasBarber"] ?? "0")) ||
+                            ((hasGymSelected ? "1" : "0") !=
+                                (widget.objEstate["HasGym"] ?? "0")) ||
+                            ((hasJacuzziSelected ? "1" : "0") !=
+                                (widget.objEstate["HasJacuzziInRoom"] ??
+                                    "0")) ||
+                            ((hasMassageSelected ? "1" : "0") !=
+                                (widget.objEstate["HasMassage"] ?? "0")) ||
+                            ((isSmokingAllowed ? "1" : "0") !=
+                                (widget.objEstate["IsSmokingAllowed"] ??
+                                    "0")) ||
+                            ((hasValet ? "1" : "0") !=
+                                (widget.objEstate["HasValet"] ?? "0")) ||
+                            ((valetWithFees ? "1" : "0") !=
+                                (widget.objEstate["ValetWithFees"] ?? "0"))) {
+                          changesMade = true;
                         }
-                      } else {
-                        // If no changes were made, show failure dialog without navigating away
-                        await showDialog(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return const FailureDialog(
-                              text: "No Changes Detected",
-                              text1:
-                                  "You did not make any changes to your estate.",
+
+                        if (newImageFiles.isNotEmpty) changesMade = true;
+
+                        // ===== Step 1.5: Metro change detection (corrected) =====
+                        bool metroChanged = false;
+
+                        // Only compare lines/stations if both "was" and "now" are in Riyadh.
+                        if (cityIsRiyadhNow && cityWasRiyadh) {
+                          final nowLines = List<String>.from(_metro.chosenLines)
+                            ..sort();
+                          final prevLines = List<String>.from(_metroPrevLines)
+                            ..sort();
+
+                          const eq = ListEquality<String>();
+
+                          if (nowLines.length != prevLines.length ||
+                              !eq.equals(nowLines, prevLines)) {
+                            metroChanged = true;
+                          } else {
+                            for (final ln in nowLines) {
+                              final prev = List<String>.from(
+                                  _metroPrevStationsByLine[ln] ??
+                                      const <String>[])
+                                ..sort();
+                              final now = List<String>.from(
+                                  _metro.chosenStationsByLine[ln] ??
+                                      const <String>[])
+                                ..sort();
+                              if (now.length != prev.length ||
+                                  !eq.equals(now, prev)) {
+                                metroChanged = true;
+                                break;
+                              }
+                            }
+                          }
+                        } else if (cityIsRiyadhNow != cityWasRiyadh) {
+                          // Eligibility changed (entered or left Riyadh) -> treat as metro change
+                          metroChanged = true;
+                        }
+                        // ===== END Metro change detection =====
+
+                        // Step 2: proceed if ANY changes, or floor plan change, or METRO change
+                        if (changesMade ||
+                            _pendingLayout != null ||
+                            metroChanged) {
+                          await Update(); // writes Metro + all fields
+
+                          if (newImageFiles.isNotEmpty) {
+                            await saveUpdatedImages();
+                          }
+
+                          if (_pendingLayout != null) {
+                            final childType =
+                                (estateType == "2") ? "Coffee" : "Restaurant";
+                            await backendService.uploadAutoCadLayout(
+                              childType: childType,
+                              estateId: widget.estateId,
+                              layout: _pendingLayout!,
                             );
-                          },
-                        );
-                      }
-                    },
-                  ),
+                            _pendingLayout = null;
+                          }
+
+                          await showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return const SuccessDialog(
+                                text: "Success",
+                                text1:
+                                    "Your estate has been successfully updated.",
+                              );
+                            },
+                          );
+
+                          if (estateType == "2" || estateType == "3") {
+                            Navigator.of(context)
+                                .popUntil((route) => route.isFirst);
+                          }
+                        } else {
+                          await showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return const FailureDialog(
+                                text: "No Changes Detected",
+                                text1:
+                                    "You did not make any changes to your estate.",
+                              );
+                            },
+                          );
+                        }
+                      }),
                 )
               ],
             ),
@@ -2190,14 +2021,56 @@ class _EditEstateState extends State<EditEstate> {
     );
   }
 
-  /// Method to update estate information in Firebase
+  /// Update estate information in Firebase (includes Metro)
   Future<void> Update() async {
     String ChildType;
     String type;
     SharedPreferences sharedPreferences = await SharedPreferences.getInstance();
-    String estateType = widget.objEstate['Type'] ?? "1"; // Default to "1"
+    String estateType = widget.objEstate['Type'] ?? "1";
+
+    // ===== METRO: write/remove Metro node =====
+    final String effectiveCity = (cityValue ?? _metroCity ?? "").toString();
+    final bool isRiyadh = effectiveCity.toLowerCase() == "riyadh";
+    final chosenLines = _metro.chosenLines;
+    final chosenStationsByLine = _metro.chosenStationsByLine;
+
+    final String childTypePath = (estateType == "1")
+        ? "Hottel"
+        : (estateType == "2")
+            ? "Coffee"
+            : "Restaurant";
+
+    final DatabaseReference estateRef =
+        ref.child(childTypePath).child(widget.objEstate['IDEstate'].toString());
+
+    if (!isRiyadh || chosenLines.isEmpty) {
+      await estateRef.child("Metro").remove();
+    } else {
+      final Map<String, dynamic> linesNode = {};
+      for (final ln in chosenLines) {
+        final stations = (chosenStationsByLine[ln] ?? const <String>[]);
+        linesNode[ln] = {
+          "Stations": stations.join(","),
+        };
+      }
+      await estateRef.child("Metro").set({
+        "City": "Riyadh",
+        "Lines": linesNode,
+      });
+    }
+
+    // Keep local metro snapshot aligned for next save
+    _metroCity = isRiyadh ? "Riyadh" : "";
+    _metroPrevLines = List<String>.from(chosenLines);
+    _metroPrevStationsByLine = {};
+    for (final ln in chosenLines) {
+      _metroPrevStationsByLine[ln] =
+          List<String>.from(chosenStationsByLine[ln] ?? const <String>[]);
+    }
+    // ===== END METRO =====
+
     if (estateType == "1") {
-      ChildType = "Hottel"; // Corrected spelling from "Hottel" to "Hotel"
+      ChildType = "Hottel";
       type = "1";
     } else if (estateType == "2") {
       ChildType = "Coffee";
@@ -2208,15 +2081,8 @@ class _EditEstateState extends State<EditEstate> {
     }
     String? TypeAccount = sharedPreferences.getString("TypeAccount") ?? "2";
 
-    // Determine the Music value based on estate type
-    String musicValue = "0";
-    if (type == "2") {
-      musicValue = isMusicSelected ? "1" : "0";
-    } else if (type == "1" || type == "3") {
-      musicValue = isMusicSelected ? "1" : "0";
-    }
+    String musicValue = isMusicSelected ? "1" : "0";
 
-    // Update main estate information
     await ref
         .child(ChildType)
         .child(widget.objEstate['IDEstate'].toString())
@@ -2236,8 +2102,8 @@ class _EditEstateState extends State<EditEstate> {
       "IDUser": FirebaseAuth.instance.currentUser?.uid ?? "No Id",
       "IDEstate": widget.objEstate['IDEstate'],
       "TypeAccount": TypeAccount,
-      "Music": musicValue, // Correctly assign Music
-      "HasKidsArea": hasKidsArea ? "1" : "0", // Save HasKidsArea
+      "Music": musicValue,
+      "HasKidsArea": hasKidsArea ? "1" : "0",
       "IsSmokingAllowed": isSmokingAllowed ? "1" : "0",
       "HasValet": hasValet ? "1" : "0",
       "ValetWithFees": valetWithFees ? "1" : "0",
@@ -2246,21 +2112,18 @@ class _EditEstateState extends State<EditEstate> {
       if (type == "1") "HasJacuzziInRoom": hasJacuzziSelected ? "1" : "0",
       if (type == "1") "HasMassage": hasMassageSelected ? "1" : "0",
       if (type == "1") "HasSwimmingPool": hasSwimmingPoolSelected ? "1" : "0",
-      // Save selected restaurant types
       if (type == "3") "TypeofRestaurant": selectedRestaurantTypes.join(","),
       "Lat": _editedLocation.latitude,
       "Lon": _editedLocation.longitude,
-      // Save selected entries
       "Entry": selectedEntries.join(","),
       if (type == "2" || type == "3")
         "Sessions": selectedEditSessionsType.join(","),
       if (type == "2" || type == "3")
-        if (type == "2" || type == "3")
-          "additionals": selectedEditAdditionalsType.join(","),
+        "additionals": selectedEditAdditionalsType.join(","),
       if (type == "2") "Lstmusic": lstMusicCoffee.join(","),
     });
 
-    // Update Rooms information if necessary
+    // Rooms
     DatabaseReference refRooms =
         FirebaseDatabase.instance.ref("App").child("Rooms");
     if (single) {
@@ -2290,7 +2153,7 @@ class _EditEstateState extends State<EditEstate> {
     if (suite) {
       await refRooms
           .child(widget.objEstate['IDEstate'].toString())
-          .child("Suite") // Corrected from "Swite" to "Suite"
+          .child("Suite")
           .update({
         "ID": suiteControllerID.text,
         "Name": "Suite",

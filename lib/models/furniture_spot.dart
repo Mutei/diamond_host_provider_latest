@@ -1,42 +1,26 @@
-// lib/models/furniture_spot.dart
 import 'package:flutter/material.dart';
 
-/// What kind of spot this is.
-enum FurnitureType { table, seat, toilet, decoration, bar }
+enum FurnitureType { table, seat, toilet, decoration, bar, screen }
 
-/// Shapes only for tables.
-enum TableShape { rectangle, square, circle }
+enum TableShape { rectangle, square, circle, oval }
 
-/// Chair vs. sofa styling.
 enum SeatType { chair, sofa }
 
-/// Decoration variants.
 enum DecorationType { door, window, view }
 
 class FurnitureSpot {
   final String id;
-  double x; // normalized 0..1
+  double x;
   double y;
-  double w; // normalized width
-  double h; // normalized height
-
-  /// table, seat, toilet, decoration, or bar
+  double w;
+  double h;
   FurnitureType type;
-
-  /// only for tables
   int capacity;
-
-  /// only for tables
   TableShape shape;
-
-  /// for seats and seats around tables
   SeatType seatType;
-
-  /// only when type == decoration
   DecorationType? decorationType;
-
-  /// tint/color
   Color color;
+  double rotation;
 
   FurnitureSpot({
     required this.id,
@@ -50,5 +34,48 @@ class FurnitureSpot {
     this.seatType = SeatType.chair,
     this.decorationType,
     this.color = const Color(0xFFB8860B),
+    this.rotation = 0.0,
   });
+
+  // Convert to JSON for Firebase/DB
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'x': x,
+        'y': y,
+        'w': w,
+        'h': h,
+        'type': type.name,
+        'capacity': capacity,
+        'shape': shape.name,
+        'seatType': seatType.name,
+        'decoration': decorationType?.name,
+        'color': color.value,
+        'rotation': rotation,
+      };
+
+  static FurnitureSpot fromJson(Map<dynamic, dynamic> json) {
+    return FurnitureSpot(
+      id: json['id'] as String,
+      x: (json['x'] as num).toDouble(),
+      y: (json['y'] as num).toDouble(),
+      w: (json['w'] as num).toDouble(),
+      h: (json['h'] as num).toDouble(),
+      type: FurnitureType.values.firstWhere((e) => e.name == json['type']),
+      capacity: (json['capacity'] is int)
+          ? json['capacity'] as int
+          : int.tryParse('${json['capacity']}') ?? 1,
+      shape: TableShape.values.firstWhere((e) => e.name == json['shape'],
+          orElse: () => TableShape.rectangle),
+      seatType: SeatType.values.firstWhere((e) => e.name == json['seatType'],
+          orElse: () => SeatType.chair),
+      decorationType: json['decoration'] != null
+          ? DecorationType.values
+              .firstWhere((e) => e.name == json['decoration'])
+          : null,
+      color: Color(json['color'] as int),
+      rotation: (json['rotation'] is num)
+          ? (json['rotation'] as num).toDouble()
+          : 0.0,
+    );
+  }
 }

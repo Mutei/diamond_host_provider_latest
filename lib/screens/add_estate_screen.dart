@@ -1,3 +1,5 @@
+// lib/screens/add_estates_screen.dart
+
 import 'package:daimond_host_provider/backend/adding_estate_services.dart';
 import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:daimond_host_provider/constants/styles.dart';
@@ -30,6 +32,10 @@ import '../widgets/reused_provider_estate_container.dart';
 import '../widgets/room_type_visibility.dart';
 import '../widgets/sessions_visibility.dart';
 import 'maps_screen.dart';
+import 'package:intl/intl.dart';
+
+// 🆕 Metro picker import
+import '../widgets/riyadh_metro_picker.dart';
 
 class AddEstatesScreen extends StatefulWidget {
   final String userType;
@@ -48,6 +54,57 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   String? _layoutId;
   AutoCadLayout? _pendingLayout;
   List<XFile>? imageFiles;
+
+  // ===== Scroll + Anchors =====
+  final ScrollController _scrollController = ScrollController();
+
+  // Section anchors
+  final GlobalKey _keyInfoAr = GlobalKey();
+  final GlobalKey _keyInfoEn = GlobalKey();
+  final GlobalKey _keyBranchEn = GlobalKey();
+  final GlobalKey _keyBranchAr = GlobalKey();
+  final GlobalKey _keyLegal = GlobalKey();
+  final GlobalKey _keyFloorPlan = GlobalKey();
+  final GlobalKey _keyMenu = GlobalKey();
+  final GlobalKey _keyPhone = GlobalKey();
+  final GlobalKey _keyFacilitiesHotel = GlobalKey();
+  final GlobalKey _keyRestaurantType = GlobalKey();
+  final GlobalKey _keyEntry = GlobalKey();
+  final GlobalKey _keySessions = GlobalKey();
+  final GlobalKey _keyMusic = GlobalKey();
+  final GlobalKey _keyValet = GlobalKey();
+  final GlobalKey _keyKids = GlobalKey();
+  final GlobalKey _keySmoking = GlobalKey();
+  final GlobalKey _keyAmenitiesHotel = GlobalKey();
+  final GlobalKey _keyLocation = GlobalKey();
+  final GlobalKey _keyHotelRooms = GlobalKey();
+  final GlobalKey _keyMetro = GlobalKey(); // Metro section anchor
+
+  // Exact field anchors (scroll to field, not just header)
+  final GlobalKey _keyNameArField = GlobalKey();
+  final GlobalKey _keyNameEnField = GlobalKey();
+  final GlobalKey _keyBranchEnField = GlobalKey();
+  final GlobalKey _keyBranchArField = GlobalKey();
+
+  void _scrollTo(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 550),
+        curve: Curves.easeInOut,
+        alignment: 0.08,
+      );
+    } else {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 550),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  // ===== Controllers & State =====
   TextEditingController nameController = TextEditingController();
   TextEditingController bioController = TextEditingController();
   TextEditingController menuLinkController = TextEditingController();
@@ -106,6 +163,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   TextEditingController businessSuiteControllerBioAr = TextEditingController();
   List<String> listTypeOfRestaurant = [];
   List<String> listEntry = [];
+  // NOTE: `listSessions` intentionally not used anymore; keep or remove.
   List<String> listSessions = [];
   List<String> roomAllowance = [];
   List<String> additionals = [];
@@ -118,62 +176,90 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   bool grandSuite = false;
   bool businessSuite = false;
   String? countryValue;
-  late String? stateValue;
-  late String? cityValue;
+  String? stateValue;
+  String? cityValue;
   int? idEstate;
   late Widget btnLogin;
   String breakfastPrice = '';
   String launchPrice = '';
   String dinnerPrice = '';
 
-  // New valet variables
+  // Valet
   bool hasValet = false;
   bool valetWithFees = false;
 
-  // New kids area variables
+  // Kids area
   bool hasKidsArea = false;
   bool isSmokingAllowed = false;
 
-  // New hotel-specific variables
+  // Hotel amenities
   bool hasSwimmingPool = false;
   bool hasJacuzzi = false;
   bool hasBarber = false;
   bool hasMassage = false;
   bool hasGym = false;
 
-  // New isUploading variable to track the upload process
+  // Uploading states
   bool isUploadingFacility = false;
   bool isUploadingTax = false;
 
-  // New state variable to store the PDF URL
+  // PDF URLs
   String? facilityPdfUrl;
   String? taxPdfUrl;
+
+  // Selections
   List<String> selectedEntries = [];
   List<String> selectedSessions = [];
   List<String> selectedAdditionals = [];
   List<String> selectedRestaurantTypes = [];
 
+  // 🆕 Metro selection controller (replaces in-file metro state/constants)
+  final MetroSelectionController _metroCtrl = MetroSelectionController();
+  final TextEditingController _dateOfPhotographyController =
+      TextEditingController();
+  final TextEditingController _timeOfPhotographyController =
+      TextEditingController();
+  String? _dayOfPhotography; // computed from selected date
+
+  // === Helpers (labels & language) ===
+  bool _isArabic(BuildContext context) {
+    try {
+      final code = Localizations.localeOf(context).languageCode.toLowerCase();
+      return code == 'ar';
+    } catch (_) {
+      return Directionality.of(context) == TextDirection.RTL;
+    }
+  }
+
+  @override
+  void dispose() {
+    _dateOfPhotographyController.dispose();
+    _timeOfPhotographyController.dispose();
+    super.dispose();
+  }
+
   void _onRestaurantTypeCheckboxChanged(bool value, String type) {
     setState(() {
       if (value) {
-        // Add to the list if checked
         selectedRestaurantTypes.add(type);
       } else {
-        // Remove from the list if unchecked
         selectedRestaurantTypes.remove(type);
       }
     });
   }
 
+  bool _hasPartialMetroSelection() {
+    final lines = _metroCtrl.chosenLines; // selected lines
+    for (final ln in lines) {
+      final st =
+          _metroCtrl.chosenStationsByLine[ln]; // may be null if none chosen
+      if (st == null || st.isEmpty) return true; // a line with no stations
+    }
+    return false;
+  }
+
   Future<void> saveFacilities(String estateId) async {
     for (var facility in facilityList) {
-      // Save under App > Fasilty > estateId > facilityId
-      // DatabaseReference refFacility = FirebaseDatabase.instance
-      //     .ref("App")
-      //     .child("Fasilty")
-      //     .child(estateId)
-      //     .child(facility.id);
-      // Save under App > Estate > Hottel > estateId > Fasilty > facilityId
       DatabaseReference refEstateFacility = FirebaseDatabase.instance
           .ref("App")
           .child("Estate")
@@ -182,12 +268,6 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
           .child("Fasilty")
           .child(facility.id);
 
-      // await refFacility.set({
-      //   "ID": facility.id,
-      //   "Name": facility.name,
-      //   "NameEn": facility.nameEn,
-      //   "Price": facility.price,
-      // });
       await refEstateFacility.set({
         "ID": facility.id,
         "Name": facility.name,
@@ -200,10 +280,8 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   void _onAdditionalCheckboxChanged(bool value, String type) {
     setState(() {
       if (value) {
-        // Add to the list if checked
         selectedAdditionals.add(type);
       } else {
-        // Remove from the list if unchecked
         selectedAdditionals.remove(type);
       }
     });
@@ -212,10 +290,8 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   void _onSessionCheckboxChanged(bool value, String type) {
     setState(() {
       if (value) {
-        // Add to the list if checked
         selectedSessions.add(type);
       } else {
-        // Remove from the list if unchecked
         selectedSessions.remove(type);
       }
     });
@@ -224,34 +300,14 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   void _onCheckboxChanged(bool value, String type) {
     setState(() {
       if (value) {
-        // Add to the list if checked
         selectedEntries.add(type);
       } else {
-        // Remove from the list if unchecked
         selectedEntries.remove(type);
       }
     });
   }
 
-  // bool _areRequiredFieldsFilled() {
-  //   return nameController.text.isNotEmpty &&
-  //       enNameController.text.isNotEmpty &&
-  //       // menuLinkController.text.isNotEmpty &&
-  //       (countryValue != null && countryValue!.isNotEmpty) &&
-  //       (stateValue != null && stateValue!.isNotEmpty) &&
-  //       (cityValue != null && cityValue!.isNotEmpty);
-  //
-  //   // ((widget.userType == "3" && selectedRestaurantTypes.isNotEmpty) ||
-  //   //     widget.userType !=
-  //   //         "3") && // Ensure this condition applies only to restaurants
-  //   // (widget.userType != "1"
-  //   //     ? selectedSessions.isNotEmpty && selectedEntries.isNotEmpty
-  //   //     : true) && // Ensure selectedSessions and selectedEntries are required only for userType != "1"
-  //   // ((widget.userType == "1" && hasSwimmingPool) ||
-  //   //     (widget.userType == "2" || widget.userType == "3"));
-  //   // (facilityPdfUrl != null && facilityPdfUrl!.isNotEmpty) &&
-  //   // (taxPdfUrl != null && taxPdfUrl!.isNotEmpty));
-  // }
+  // ===== Validation (combined) =====
   bool _areRequiredFieldsFilled() {
     bool basicFieldsFilled = nameController.text.isNotEmpty &&
         enNameController.text.isNotEmpty &&
@@ -261,14 +317,76 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
         (stateValue != null && stateValue!.isNotEmpty) &&
         (cityValue != null && cityValue!.isNotEmpty);
 
-    // For hotels, ensure at least one room type is selected
+    if (!basicFieldsFilled) return false;
+
+    if (facilityPdfUrl == null || facilityPdfUrl!.isEmpty) return false;
+    if (taxPdfUrl == null || taxPdfUrl!.isEmpty) return false;
+
     if (widget.userType == "1") {
       bool roomTypeSelected =
           single || double || suite || family || grandSuite || businessSuite;
-      return basicFieldsFilled && roomTypeSelected;
-    } else {
-      return basicFieldsFilled;
+      bool hasAmenity =
+          hasSwimmingPool || hasJacuzzi || hasBarber || hasMassage || hasGym;
+      return roomTypeSelected && hasAmenity;
     }
+
+    if (widget.userType == "2") {
+      bool sessionsOk = selectedSessions.isNotEmpty;
+      bool entriesOk = selectedEntries.isNotEmpty;
+      return sessionsOk && entriesOk;
+    }
+
+    if (widget.userType == "3") {
+      bool restaurantTypeOk = selectedRestaurantTypes.isNotEmpty;
+      bool sessionsOk = selectedSessions.isNotEmpty;
+      bool entriesOk = selectedEntries.isNotEmpty;
+      return restaurantTypeOk && sessionsOk && entriesOk;
+    }
+
+    return basicFieldsFilled;
+  }
+
+  // ===== First missing anchor =====
+  GlobalKey? _getFirstMissingAnchor() {
+    if (nameController.text.isEmpty) return _keyNameArField;
+    if (enNameController.text.isEmpty) return _keyNameEnField;
+    if (enBranchController.text.isEmpty) return _keyBranchEnField;
+    if (arBranchController.text.isEmpty) return _keyBranchArField;
+
+    if ((countryValue == null || countryValue!.isNotEmpty == false) ||
+        (stateValue == null || stateValue!.isNotEmpty == false) ||
+        (cityValue == null || cityValue!.isNotEmpty == false)) {
+      return _keyLocation;
+    }
+
+    if (facilityPdfUrl == null || facilityPdfUrl!.isEmpty) return _keyLegal;
+    if (taxPdfUrl == null || taxPdfUrl!.isEmpty) return _keyLegal;
+
+    if (widget.userType == "1") {
+      if (!(single ||
+          double ||
+          suite ||
+          family ||
+          grandSuite ||
+          businessSuite)) {
+        return _keyHotelRooms;
+      }
+      if (!(hasSwimmingPool ||
+          hasJacuzzi ||
+          hasBarber ||
+          hasMassage ||
+          hasGym)) {
+        return _keyAmenitiesHotel;
+      }
+    } else if (widget.userType == "2") {
+      if (selectedEntries.isEmpty) return _keyEntry;
+      if (selectedSessions.isEmpty) return _keySessions;
+    } else if (widget.userType == "3") {
+      if (selectedRestaurantTypes.isEmpty) return _keyRestaurantType;
+      if (selectedEntries.isEmpty) return _keyEntry;
+      if (selectedSessions.isEmpty) return _keySessions;
+    }
+    return null;
   }
 
   @override
@@ -291,6 +409,8 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
       getTranslated(context, "Next"),
       style: const TextStyle(color: Colors.white),
     );
+    final bool isAr = _isArabic(context);
+
     return Scaffold(
       appBar: AppBar(
         iconTheme: kIconTheme,
@@ -317,22 +437,32 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
             margin: const EdgeInsetsDirectional.only(bottom: 20),
             child: SafeArea(
               child: ListView(
+                key: const PageStorageKey('add_estates_list'),
+                controller: _scrollController,
                 children: [
                   25.kH,
-                  const ReusedProviderEstateContainer(
-                    hint: "Information in Arabic",
-                  ),
-                  TextFormFieldStyle(
-                    context: context,
-                    hint: "Name",
-                    icon: Icon(
-                      widget.userType != "1" ? Icons.restaurant : Icons.hotel,
-                      color: kDeepPurpleColor,
+                  // Arabic info
+                  Container(
+                    key: _keyInfoAr,
+                    child: const ReusedProviderEstateContainer(
+                      hint: "Information in Arabic",
                     ),
-                    control: nameController,
-                    isObsecured: false,
-                    validate: true,
-                    textInputType: TextInputType.text,
+                  ),
+                  // Arabic Name (exact anchor)
+                  Container(
+                    key: _keyNameArField,
+                    child: TextFormFieldStyle(
+                      context: context,
+                      hint: "Name",
+                      icon: Icon(
+                        widget.userType != "1" ? Icons.restaurant : Icons.hotel,
+                        color: kDeepPurpleColor,
+                      ),
+                      control: nameController,
+                      isObsecured: false,
+                      validate: true,
+                      textInputType: TextInputType.text,
+                    ),
                   ),
                   TextFormFieldStyle(
                     context: context,
@@ -347,20 +477,28 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                     textInputType: TextInputType.text,
                   ),
                   40.kH,
-                  const ReusedProviderEstateContainer(
-                    hint: "Information in English",
-                  ),
-                  TextFormFieldStyle(
-                    context: context,
-                    hint: "Name",
-                    icon: Icon(
-                      widget.userType != "1" ? Icons.restaurant : Icons.hotel,
-                      color: kDeepPurpleColor,
+                  // English info
+                  Container(
+                    key: _keyInfoEn,
+                    child: const ReusedProviderEstateContainer(
+                      hint: "Information in English",
                     ),
-                    control: enNameController,
-                    isObsecured: false,
-                    validate: true,
-                    textInputType: TextInputType.text,
+                  ),
+                  // English Name (exact anchor)
+                  Container(
+                    key: _keyNameEnField,
+                    child: TextFormFieldStyle(
+                      context: context,
+                      hint: "Name",
+                      icon: Icon(
+                        widget.userType != "1" ? Icons.restaurant : Icons.hotel,
+                        color: kDeepPurpleColor,
+                      ),
+                      control: enNameController,
+                      isObsecured: false,
+                      validate: true,
+                      textInputType: TextInputType.text,
+                    ),
                   ),
                   TextFormFieldStyle(
                     context: context,
@@ -375,42 +513,62 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                     textInputType: TextInputType.text,
                   ),
                   40.kH,
-                  const ReusedProviderEstateContainer(
-                    hint: "Branch in English",
-                  ),
-                  TextFormFieldStyle(
-                    context: context,
-                    hint: "Branch name (Required)",
-                    icon: Icon(
-                      Icons.location_on,
-                      color: kDeepPurpleColor,
+                  // Branch EN
+                  Container(
+                    key: _keyBranchEn,
+                    child: const ReusedProviderEstateContainer(
+                      hint: "Branch in English",
                     ),
-                    control: enBranchController,
-                    isObsecured: false,
-                    validate: true,
-                    textInputType: TextInputType.text,
+                  ),
+                  // Branch EN field (exact anchor)
+                  Container(
+                    key: _keyBranchEnField,
+                    child: TextFormFieldStyle(
+                      context: context,
+                      hint: "Branch name (Required)",
+                      icon: Icon(
+                        Icons.location_on,
+                        color: kDeepPurpleColor,
+                      ),
+                      control: enBranchController,
+                      isObsecured: false,
+                      validate: true,
+                      textInputType: TextInputType.text,
+                    ),
                   ),
                   40.kH,
-                  const ReusedProviderEstateContainer(
-                    hint: "Branch in Arabic",
-                  ),
-                  TextFormFieldStyle(
-                    context: context,
-                    hint: "Branch name (Required)",
-                    icon: Icon(
-                      Icons.location_on,
-                      color: kDeepPurpleColor,
+                  // Branch AR
+                  Container(
+                    key: _keyBranchAr,
+                    child: const ReusedProviderEstateContainer(
+                      hint: "Branch in Arabic",
                     ),
-                    control: arBranchController,
-                    isObsecured: false,
-                    validate: true,
-                    textInputType: TextInputType.text,
+                  ),
+                  // Branch AR field (exact anchor)
+                  Container(
+                    key: _keyBranchArField,
+                    child: TextFormFieldStyle(
+                      context: context,
+                      hint: "Branch name (Required)",
+                      icon: Icon(
+                        Icons.location_on,
+                        color: kDeepPurpleColor,
+                      ),
+                      control: arBranchController,
+                      isObsecured: false,
+                      validate: true,
+                      textInputType: TextInputType.text,
+                    ),
                   ),
                   40.kH,
+                  // Legal
                   Row(
                     children: [
-                      const ReusedProviderEstateContainer(
-                        hint: "Legal information",
+                      Container(
+                        key: _keyLegal,
+                        child: const ReusedProviderEstateContainer(
+                          hint: "Legal information",
+                        ),
                       ),
                       Container(
                         margin: const EdgeInsets.only(bottom: 20, top: 10),
@@ -426,6 +584,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                     ],
                   ),
 
+                  // ===== Facility PDF upload =====
                   Container(
                     margin: const EdgeInsetsDirectional.only(
                         start: 50, end: 50, bottom: 20),
@@ -468,8 +627,8 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             });
 
                             try {
-                              FilePickerResult? result = await backendService
-                                  .openSinglePdf(); // Open a single PDF picker
+                              FilePickerResult? result =
+                                  await backendService.openSinglePdf();
                               if (result != null &&
                                   result.files.single.path != null) {
                                 String pdfPath = result.files.single.path!;
@@ -479,8 +638,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
 
                                 if (pdfUrl != null) {
                                   setState(() {
-                                    facilityPdfUrl =
-                                        pdfUrl; // Store the PDF URL
+                                    facilityPdfUrl = pdfUrl;
                                   });
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
@@ -499,8 +657,6 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                   );
                                 }
                               } else {
-                                // User canceled the picker
-                                // Optionally, show a message
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(getTranslated(
@@ -510,6 +666,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                 );
                               }
                             } catch (e) {
+                              // ignore: avoid_print
                               print("Error during PDF upload: $e");
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -531,18 +688,6 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             getTranslated(context, "Uploading..."),
                             style: const TextStyle(color: Colors.blue),
                           ),
-                        // if (facilityPdfUrl != null &&
-                        //     facilityPdfUrl!.isNotEmpty)
-                        //   Padding(
-                        //     padding: const EdgeInsets.only(top: 10.0),
-                        //     child: Text(
-                        //       getTranslated(context, "PDF Uploaded"),
-                        //       style: const TextStyle(
-                        //         color: Colors.green,
-                        //         fontSize: 14.0,
-                        //       ),
-                        //     ),
-                        //   ),
                         if (facilityPdfUrl != null &&
                             facilityPdfUrl!.isNotEmpty)
                           Column(
@@ -572,20 +717,20 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                   ),
                                 ],
                               ),
-                              // Display a preview of the PDF in a container (adjust height as needed)
                               Container(
                                 height: 300,
                                 child: PDF().cachedFromUrl(
                                   facilityPdfUrl!,
                                   placeholder: (progress) =>
                                       Center(child: Text('$progress %')),
-                                  errorWidget: (error) =>
-                                      Center(child: Text('Error loading PDF')),
+                                  errorWidget: (error) => const Center(
+                                      child: Text('Error loading PDF')),
                                 ),
                               ),
                             ],
                           ),
 
+                        // ===== Tax PDF upload =====
                         Text(
                           getTranslated(context, "Upload Tax Number (PDF)"),
                           style: const TextStyle(
@@ -621,8 +766,8 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             });
 
                             try {
-                              FilePickerResult? result = await backendService
-                                  .openSinglePdf(); // Open a single PDF picker
+                              FilePickerResult? result =
+                                  await backendService.openSinglePdf();
                               if (result != null &&
                                   result.files.single.path != null) {
                                 String pdfPath = result.files.single.path!;
@@ -632,7 +777,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
 
                                 if (pdfUrl != null) {
                                   setState(() {
-                                    taxPdfUrl = pdfUrl; // Store the PDF URL
+                                    taxPdfUrl = pdfUrl;
                                   });
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
@@ -651,8 +796,6 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                   );
                                 }
                               } else {
-                                // User canceled the picker
-                                // Optionally, show a message
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(getTranslated(
@@ -662,6 +805,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                 );
                               }
                             } catch (e) {
+                              // ignore: avoid_print
                               print("Error during PDF upload: $e");
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -683,17 +827,6 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             getTranslated(context, "Uploading..."),
                             style: const TextStyle(color: Colors.blue),
                           ),
-                        // if (taxPdfUrl != null && taxPdfUrl!.isNotEmpty)
-                        //   Padding(
-                        //     padding: const EdgeInsets.only(top: 10.0),
-                        //     child: Text(
-                        //       getTranslated(context, "PDF Uploaded"),
-                        //       style: const TextStyle(
-                        //         color: Colors.green,
-                        //         fontSize: 14.0,
-                        //       ),
-                        //     ),
-                        //   ),
                         if (taxPdfUrl != null && taxPdfUrl!.isNotEmpty)
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -728,8 +861,8 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                   taxPdfUrl!,
                                   placeholder: (progress) =>
                                       Center(child: Text('$progress %')),
-                                  errorWidget: (error) =>
-                                      Center(child: Text('Error loading PDF')),
+                                  errorWidget: (error) => const Center(
+                                      child: Text('Error loading PDF')),
                                 ),
                               ),
                             ],
@@ -737,11 +870,93 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                       ],
                     ),
                   ),
+                  // Photographer date (optional)
+                  // Photographer visit (optional)
+                  const SizedBox(height: 20),
+                  const ReusedProviderEstateContainer(
+                      hint: "Photographer Visit (Optional)"),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 50),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Date picker (auto-computes DayOfPhotography)
+                        TextFormField(
+                          controller: _dateOfPhotographyController,
+                          readOnly: true,
+                          decoration: InputDecoration(
+                            labelText: getTranslated(
+                                context, "Choose a date for photography"),
+                            prefixIcon:
+                                Icon(Icons.camera_alt, color: kDeepPurpleColor),
+                            suffixIcon: const Icon(Icons.calendar_today),
+                            border: const OutlineInputBorder(),
+                            hintText:
+                                getTranslated(context, "Tap to select a date"),
+                          ),
+                          onTap: () async {
+                            final now = DateTime.now();
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: now.add(const Duration(days: 2)),
+                              firstDate: now,
+                              lastDate: now.add(const Duration(days: 180)),
+                            );
+                            if (picked != null) {
+                              // yyyy-MM-dd (DB-friendly)
+                              _dateOfPhotographyController.text =
+                                  DateFormat('yyyy-MM-dd').format(picked);
+                              // DayOfPhotography (e.g., Monday)
+                              _dayOfPhotography =
+                                  DateFormat('EEEE').format(picked);
+                              setState(
+                                  () {}); // if you want to reflect the chosen day somewhere
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Time picker (24h like 17:00)
+                        TextFormField(
+                          controller: _timeOfPhotographyController,
+                          readOnly: true,
+                          decoration: InputDecoration(
+                            labelText: getTranslated(context, "Available time"),
+                            prefixIcon: Icon(Icons.access_time,
+                                color: kDeepPurpleColor),
+                            suffixIcon: const Icon(Icons.schedule),
+                            border: const OutlineInputBorder(),
+                            hintText: "HH:mm",
+                          ),
+                          onTap: () async {
+                            final picked = await showTimePicker(
+                              context: context,
+                              initialTime: const TimeOfDay(hour: 17, minute: 0),
+                              builder: (ctx, child) =>
+                                  child ?? const SizedBox.shrink(),
+                            );
+                            if (picked != null) {
+                              // Force 24h HH:mm
+                              final dt =
+                                  DateTime(0, 1, 1, picked.hour, picked.minute);
+                              _timeOfPhotographyController.text =
+                                  DateFormat('HH:mm').format(dt);
+                              setState(() {});
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
                   10.kH,
                   if (widget.userType == "2" || widget.userType == "3") ...[
                     20.kH,
-                    const ReusedProviderEstateContainer(
-                      hint: "Floor Plan (Optional)",
+                    Container(
+                      key: _keyFloorPlan,
+                      child: const ReusedProviderEstateContainer(
+                        hint: "Floor Plan (Optional)",
+                      ),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 50),
@@ -750,12 +965,18 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                         children: [
                           ElevatedButton(
                             onPressed: () async {
-                              // Determine childType
+                              if (idEstate == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text("Please wait, loading…")),
+                                );
+                                return;
+                              }
+
                               final childType = widget.userType == "2"
                                   ? "Coffee"
                                   : "Restaurant";
 
-                              // Pass the existing _layoutId (may be null) so the builder will edit if present
                               final layout =
                                   await Navigator.push<AutoCadLayout?>(
                                 context,
@@ -802,21 +1023,12 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                   ],
                   10.kH,
 
-                  // TextFormFieldStyle(
-                  //   context: context,
-                  //   hint: "Tax Number",
-                  //   icon: Icon(
-                  //     Icons.person,
-                  //     color: kDeepPurpleColor,
-                  //   ),
-                  //   control: taxNumberController,
-                  //   isObsecured: false,
-                  //   validate: true,
-                  //   textInputType: TextInputType.text,
-                  // ),
                   40.kH,
-                  const ReusedProviderEstateContainer(
-                    hint: "Menu",
+                  Container(
+                    key: _keyMenu,
+                    child: const ReusedProviderEstateContainer(
+                      hint: "Menu",
+                    ),
                   ),
                   TextFormFieldStyle(
                     context: context,
@@ -831,8 +1043,11 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                     textInputType: TextInputType.url,
                   ),
                   20.kH,
-                  const ReusedProviderEstateContainer(
-                    hint: "Phone number",
+                  Container(
+                    key: _keyPhone,
+                    child: const ReusedProviderEstateContainer(
+                      hint: "Phone number",
+                    ),
                   ),
                   TextFormFieldStyle(
                     context: context,
@@ -846,10 +1061,12 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                     validate: true,
                     textInputType: TextInputType.url,
                   ),
-                  // Facility Section
+
+                  // Hotel additional services list (optional UI)
                   Visibility(
                     visible: widget.userType == "1" ? true : false,
                     child: Container(
+                      key: _keyFacilitiesHotel,
                       margin: const EdgeInsets.symmetric(
                           horizontal: 20, vertical: 20),
                       padding: const EdgeInsets.all(12),
@@ -871,7 +1088,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             controller: facilityNameController,
                             decoration: InputDecoration(
                               labelText: getTranslated(context, "Service Name"),
-                              border: OutlineInputBorder(),
+                              border: const OutlineInputBorder(),
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -880,7 +1097,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             decoration: InputDecoration(
                               labelText:
                                   getTranslated(context, "Service Name Ar"),
-                              border: OutlineInputBorder(),
+                              border: const OutlineInputBorder(),
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -889,7 +1106,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             decoration: InputDecoration(
                               labelText:
                                   getTranslated(context, "Service Price"),
-                              border: OutlineInputBorder(),
+                              border: const OutlineInputBorder(),
                             ),
                             keyboardType: TextInputType.number,
                           ),
@@ -899,7 +1116,6 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                               if (facilityNameController.text.isNotEmpty &&
                                   facilityNameArController.text.isNotEmpty &&
                                   facilityPriceController.text.isNotEmpty) {
-                                // Use a unique ID (here using timestamp)
                                 String id = DateTime.now()
                                     .millisecondsSinceEpoch
                                     .toString();
@@ -951,301 +1167,331 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                     ),
                   ),
 
-                  // Visibility(
-                  //   visible: widget.userType == "3" ? true : false,
-                  //   child: Row(
-                  //     children: [
-                  //       const ReusedProviderEstateContainer(
-                  //         hint: "Type of Restaurant",
-                  //       ),
-                  //       Container(
-                  //         margin: const EdgeInsets.only(bottom: 20, top: 10),
-                  //         child: Text(
-                  //           getTranslated(context, "(Select at least 1)"),
-                  //           style: const TextStyle(
-                  //             fontWeight: FontWeight.bold,
-                  //             fontSize: 10,
-                  //             color: Colors.red,
-                  //           ),
-                  //         ),
-                  //       )
-                  //     ],
-                  //   ),
-                  // ),
-                  // Container(
-                  //   margin: const EdgeInsetsDirectional.only(
-                  //     start: 30,
-                  //   ),
-                  //   padding: (const EdgeInsets.only(right: 25)),
-                  //   child: RestaurantTypeVisibility(
-                  //     isVisible: widget.userType == "3",
-                  //     onCheckboxChanged: _onRestaurantTypeCheckboxChanged,
-                  //     selectedRestaurantTypes:
-                  //         selectedRestaurantTypes, // Pass the selected restaurant types list
-                  //   ),
-                  // ),
-                  // 15.kH,
-                  // Visibility(
-                  //   visible: widget.userType == "3" || widget.userType == "2"
-                  //       ? true
-                  //       : false,
-                  //   child: Row(
-                  //     children: [
-                  //       const ReusedProviderEstateContainer(
-                  //         hint: "Entry allowed",
-                  //       ),
-                  //       Container(
-                  //         margin: const EdgeInsets.only(bottom: 20, top: 10),
-                  //         child: Text(
-                  //           getTranslated(context, "(Select at least 1)"),
-                  //           style: const TextStyle(
-                  //             fontWeight: FontWeight.bold,
-                  //             fontSize: 10,
-                  //             color: Colors.red,
-                  //           ),
-                  //         ),
-                  //       )
-                  //     ],
-                  //   ),
-                  // ),
-                  // Container(
-                  //   margin: const EdgeInsetsDirectional.only(
-                  //     start: 50,
-                  //   ),
-                  //   child: EntryVisibility(
-                  //     isVisible:
-                  //         widget.userType == "3" || widget.userType == "2",
-                  //     onCheckboxChanged: _onCheckboxChanged,
-                  //     selectedEntries:
-                  //         selectedEntries, // Pass the list of selected entries
-                  //   ),
-                  // ),
-                  // Visibility(
-                  //   visible: widget.userType == "3" || widget.userType == "2"
-                  //       ? true
-                  //       : false,
-                  //   child: Row(
-                  //     children: [
-                  //       const ReusedProviderEstateContainer(
-                  //         hint: 'Sessions type',
-                  //       ),
-                  //       Container(
-                  //         margin: const EdgeInsets.only(bottom: 20, top: 10),
-                  //         child: Text(
-                  //           getTranslated(context, "(Select at least 1)"),
-                  //           style: const TextStyle(
-                  //             fontWeight: FontWeight.bold,
-                  //             fontSize: 10,
-                  //             color: Colors.red,
-                  //           ),
-                  //         ),
-                  //       )
-                  //     ],
-                  //   ),
-                  // ),
-                  // Container(
-                  //   margin: const EdgeInsetsDirectional.only(
-                  //     start: 50,
-                  //   ),
-                  //   child: SessionsVisibility(
-                  //     isVisible:
-                  //         widget.userType == "3" || widget.userType == "2",
-                  //     onCheckboxChanged: _onSessionCheckboxChanged,
-                  //     selectedSessions:
-                  //         selectedSessions, // Pass the selected sessions list
-                  //   ),
-                  // ),
-                  // 40.kH,
-                  // Visibility(
-                  //   visible: widget.userType == "3" || widget.userType == "2"
-                  //       ? true
-                  //       : false,
-                  //   child: const ReusedProviderEstateContainer(
-                  //     hint: "Additionals",
-                  //   ),
-                  // ),
-                  // Container(
-                  //   margin: const EdgeInsetsDirectional.only(
-                  //     start: 50,
-                  //   ),
-                  //   child: AdditionalsRestaurantCoffee(
-                  //     isVisible:
-                  //         widget.userType == "3" || widget.userType == "2",
-                  //     onCheckboxChanged: _onAdditionalCheckboxChanged,
-                  //     selectedAdditionals:
-                  //         selectedAdditionals, // Pass the selected additionals list
-                  //   ),
-                  // ),
-                  // 40.kH,
-                  // Container(
-                  //   margin: const EdgeInsetsDirectional.only(
-                  //     start: 50,
-                  //   ),
-                  //   child: MusicVisibility(
-                  //     isVisible:
-                  //         widget.userType == "3" || widget.userType == "2",
-                  //     checkMusic: checkMusic,
-                  //     haveMusic: haveMusic,
-                  //     haveSinger: haveSinger,
-                  //     haveDJ: haveDJ,
-                  //     haveOud: haveOud,
-                  //     onMusicChanged: (value) {
-                  //       setState(() {
-                  //         checkMusic = value;
-                  //         if (!checkMusic) {
-                  //           haveMusic = false;
-                  //           haveSinger = false;
-                  //           haveDJ = false;
-                  //           haveOud = false;
-                  //         } else if (widget.userType == "2") {
-                  //           haveMusic = true;
-                  //         }
-                  //       });
-                  //     },
-                  //     onSingerChanged: (value) {
-                  //       setState(() {
-                  //         haveSinger = value;
-                  //         if (value) {
-                  //           listMusic.add("singer");
-                  //         } else {
-                  //           listMusic.remove("singer");
-                  //         }
-                  //       });
-                  //     },
-                  //     onDJChanged: (value) {
-                  //       setState(() {
-                  //         haveDJ = value;
-                  //         if (value) {
-                  //           listMusic.add("DJ");
-                  //         } else {
-                  //           listMusic.remove("DJ");
-                  //         }
-                  //       });
-                  //     },
-                  //     onOudChanged: (value) {
-                  //       setState(() {
-                  //         haveOud = value;
-                  //         if (value) {
-                  //           listMusic.add("Oud");
-                  //         } else {
-                  //           listMusic.remove("Oud");
-                  //         }
-                  //       });
-                  //     },
-                  //   ),
-                  // ),
-                  // const ReusedProviderEstateContainer(
-                  //   hint: "Valet Options",
-                  // ),
-                  // Container(
-                  //   margin: const EdgeInsetsDirectional.only(start: 50),
-                  //   child: Column(
-                  //     children: [
-                  //       CheckboxListTile(
-                  //         title:
-                  //             Text(getTranslated(context, "Is there valet?")),
-                  //         value: hasValet,
-                  //         onChanged: (bool? value) {
-                  //           setState(() {
-                  //             hasValet = value ?? false;
-                  //             valetWithFees = false; // Reset valet fees option
-                  //           });
-                  //         },
-                  //         activeColor: kPurpleColor,
-                  //         controlAffinity: ListTileControlAffinity.leading,
-                  //       ),
-                  //       Visibility(
-                  //         visible: hasValet,
-                  //         child: Column(
-                  //           crossAxisAlignment: CrossAxisAlignment.start,
-                  //           children: [
-                  //             CheckboxListTile(
-                  //               title: Text(
-                  //                   getTranslated(context, "Valet with fees")),
-                  //               value: valetWithFees,
-                  //               onChanged: (bool? value) {
-                  //                 setState(() {
-                  //                   valetWithFees = value ?? false;
-                  //                 });
-                  //               },
-                  //               activeColor: kDeepPurpleColor,
-                  //               controlAffinity:
-                  //                   ListTileControlAffinity.leading,
-                  //             ),
-                  //             Visibility(
-                  //               visible: !valetWithFees,
-                  //               child: Padding(
-                  //                 padding: const EdgeInsetsDirectional.only(
-                  //                     start: 16.0),
-                  //                 child: Text(
-                  //                   getTranslated(context,
-                  //                       "If valet with fees is not selected, valet service is free."),
-                  //                   style: TextStyle(
-                  //                     color: Colors.red,
-                  //                     fontSize: 12.sp,
-                  //                   ),
-                  //                 ),
-                  //               ),
-                  //             ),
-                  //           ],
-                  //         ),
-                  //       ),
-                  //     ],
-                  //   ),
-                  // ),
-                  // Visibility(
-                  //   visible: widget.userType == "2" || widget.userType == "3",
-                  //   child: const ReusedProviderEstateContainer(
-                  //     hint: "Kids Area Options",
-                  //   ),
-                  // ),
-                  // Visibility(
-                  //   visible: widget.userType == "2" || widget.userType == "3",
-                  //   child: Container(
-                  //     margin: const EdgeInsetsDirectional.only(start: 50),
-                  //     child: Column(
-                  //       children: [
-                  //         CheckboxListTile(
-                  //           title: Text(
-                  //               getTranslated(context, "Is there Kids Area?")),
-                  //           value: hasKidsArea,
-                  //           onChanged: (bool? value) {
-                  //             setState(() {
-                  //               hasKidsArea = value ?? false;
-                  //             });
-                  //           },
-                  //           activeColor: kDeepPurpleColor,
-                  //           controlAffinity: ListTileControlAffinity.leading,
-                  //         ),
-                  //       ],
-                  //     ),
-                  //   ),
-                  // ),
-                  // const ReusedProviderEstateContainer(
-                  //   hint: "Smoking Area?",
-                  // ),
-                  // Visibility(
-                  //   visible: widget.userType == "2" || widget.userType == "3",
-                  //   child: Container(
-                  //     margin: const EdgeInsetsDirectional.only(start: 50),
-                  //     child: Column(
-                  //       children: [
-                  //         CheckboxListTile(
-                  //           title: Text(
-                  //               getTranslated(context, "Is Smoking Allowed?")),
-                  //           value: checkIsSmokingAllowed,
-                  //           onChanged: (bool? value) {
-                  //             setState(() {
-                  //               checkIsSmokingAllowed = value ?? false;
-                  //             });
-                  //           },
-                  //           activeColor: kDeepPurpleColor,
-                  //           controlAffinity: ListTileControlAffinity.leading,
-                  //         ),
-                  //       ],
-                  //     ),
-                  //   ),
-                  // ),
+                  // Restaurant type (Restaurant)
+                  Visibility(
+                    visible: widget.userType == "3" ? true : false,
+                    child: Row(
+                      children: [
+                        Container(
+                          key: _keyRestaurantType,
+                          child: const ReusedProviderEstateContainer(
+                            hint: "Type of Restaurant",
+                          ),
+                        ),
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 20, top: 10),
+                          child: Text(
+                            getTranslated(context, "(Select at least 1)"),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                              color: Colors.red,
+                            ),
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsetsDirectional.only(
+                      start: 30,
+                    ),
+                    padding: (const EdgeInsets.only(right: 25)),
+                    child: RestaurantTypeVisibility(
+                      isVisible: widget.userType == "3",
+                      onCheckboxChanged: _onRestaurantTypeCheckboxChanged,
+                      selectedRestaurantTypes: selectedRestaurantTypes,
+                    ),
+                  ),
+                  15.kH,
+
+                  // Entry allowed (Restaurant/Coffee)
+                  Visibility(
+                    visible: widget.userType == "3" || widget.userType == "2"
+                        ? true
+                        : false,
+                    child: Row(
+                      children: [
+                        Container(
+                          key: _keyEntry,
+                          child: const ReusedProviderEstateContainer(
+                            hint: "Entry allowed",
+                          ),
+                        ),
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 20, top: 10),
+                          child: Text(
+                            getTranslated(context, "(Select at least 1)"),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                              color: Colors.red,
+                            ),
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsetsDirectional.only(
+                      start: 50,
+                    ),
+                    child: EntryVisibility(
+                      isVisible:
+                          widget.userType == "3" || widget.userType == "2",
+                      onCheckboxChanged: _onCheckboxChanged,
+                      selectedEntries: selectedEntries,
+                    ),
+                  ),
+
+                  // Sessions (Restaurant/Coffee)
+                  Visibility(
+                    visible: widget.userType == "3" || widget.userType == "2"
+                        ? true
+                        : false,
+                    child: Row(
+                      children: [
+                        Container(
+                          key: _keySessions,
+                          child: const ReusedProviderEstateContainer(
+                            hint: 'Sessions type',
+                          ),
+                        ),
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 20, top: 10),
+                          child: Text(
+                            getTranslated(context, "(Select at least 1)"),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                              color: Colors.red,
+                            ),
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsetsDirectional.only(start: 50),
+                    child: SessionsVisibility(
+                      isVisible:
+                          widget.userType == "3" || widget.userType == "2",
+                      onCheckboxChanged: _onSessionCheckboxChanged,
+                      selectedSessions: selectedSessions,
+                    ),
+                  ),
+
+                  40.kH,
+
+                  // Additionals (Restaurant/Coffee)
+                  Visibility(
+                    visible: widget.userType == "3" || widget.userType == "2"
+                        ? true
+                        : false,
+                    child: const ReusedProviderEstateContainer(
+                      hint: "Additionals",
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsetsDirectional.only(
+                      start: 50,
+                    ),
+                    child: AdditionalsRestaurantCoffee(
+                      isVisible:
+                          widget.userType == "3" || widget.userType == "2",
+                      onCheckboxChanged: _onAdditionalCheckboxChanged,
+                      selectedAdditionals: selectedAdditionals,
+                    ),
+                  ),
+                  40.kH,
+
+                  // Music (optional)
+                  Container(
+                    key: _keyMusic,
+                    margin: const EdgeInsetsDirectional.only(
+                      start: 50,
+                    ),
+                    child: MusicVisibility(
+                      isVisible:
+                          widget.userType == "3" || widget.userType == "2",
+                      checkMusic: checkMusic,
+                      haveMusic: haveMusic,
+                      haveSinger: haveSinger,
+                      haveDJ: haveDJ,
+                      haveOud: haveOud,
+                      onMusicChanged: (value) {
+                        setState(() {
+                          checkMusic = value;
+                          if (!checkMusic) {
+                            haveMusic = false;
+                            haveSinger = false;
+                            haveDJ = false;
+                            haveOud = false;
+                            listMusic.clear();
+                          } else if (widget.userType == "2") {
+                            haveMusic = true;
+                          }
+                        });
+                      },
+                      onSingerChanged: (value) {
+                        setState(() {
+                          haveSinger = value;
+                          if (value) {
+                            listMusic.add("singer");
+                          } else {
+                            listMusic.remove("singer");
+                          }
+                        });
+                      },
+                      onDJChanged: (value) {
+                        setState(() {
+                          haveDJ = value;
+                          if (value) {
+                            listMusic.add("DJ");
+                          } else {
+                            listMusic.remove("DJ");
+                          }
+                        });
+                      },
+                      onOudChanged: (value) {
+                        setState(() {
+                          haveOud = value;
+                          if (value) {
+                            listMusic.add("Oud");
+                          } else {
+                            listMusic.remove("Oud");
+                          }
+                        });
+                      },
+                    ),
+                  ),
+
+                  // Valet (optional)
+                  Container(
+                    key: _keyValet,
+                    child: const ReusedProviderEstateContainer(
+                      hint: "Valet Options",
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsetsDirectional.only(start: 50),
+                    child: Column(
+                      children: [
+                        CheckboxListTile(
+                          title:
+                              Text(getTranslated(context, "Is there valet?")),
+                          value: hasValet,
+                          onChanged: (bool? value) {
+                            setState(() {
+                              hasValet = value ?? false;
+                              valetWithFees = false;
+                            });
+                          },
+                          activeColor: kPurpleColor,
+                          controlAffinity: ListTileControlAffinity.leading,
+                        ),
+                        Visibility(
+                          visible: hasValet,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CheckboxListTile(
+                                title: Text(
+                                    getTranslated(context, "Valet with fees")),
+                                value: valetWithFees,
+                                onChanged: (bool? value) {
+                                  setState(() {
+                                    valetWithFees = value ?? false;
+                                  });
+                                },
+                                activeColor: kDeepPurpleColor,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                              ),
+                              Visibility(
+                                visible: !valetWithFees,
+                                child: Padding(
+                                  padding: const EdgeInsetsDirectional.only(
+                                      start: 16.0),
+                                  child: Text(
+                                    getTranslated(context,
+                                        "If valet with fees is not selected, valet service is free."),
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 12.sp,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Kids (optional)
+                  Visibility(
+                    visible: widget.userType == "2" || widget.userType == "3",
+                    child: Container(
+                      key: _keyKids,
+                      child: const ReusedProviderEstateContainer(
+                        hint: "Kids Area Options",
+                      ),
+                    ),
+                  ),
+                  Visibility(
+                    visible: widget.userType == "2" || widget.userType == "3",
+                    child: Container(
+                      margin: const EdgeInsetsDirectional.only(start: 50),
+                      child: Column(
+                        children: [
+                          CheckboxListTile(
+                            title: Text(
+                                getTranslated(context, "Is there Kids Area?")),
+                            value: hasKidsArea,
+                            onChanged: (bool? value) {
+                              setState(() {
+                                hasKidsArea = value ?? false;
+                              });
+                            },
+                            activeColor: kDeepPurpleColor,
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Smoking (optional)
+                  Container(
+                    key: _keySmoking,
+                    child: const ReusedProviderEstateContainer(
+                      hint: "Smoking Area?",
+                    ),
+                  ),
+                  Visibility(
+                    visible: widget.userType == "2" || widget.userType == "3",
+                    child: Container(
+                      margin: const EdgeInsetsDirectional.only(start: 50),
+                      child: Column(
+                        children: [
+                          CheckboxListTile(
+                            title: Text(
+                                getTranslated(context, "Is Smoking Allowed?")),
+                            value: checkIsSmokingAllowed,
+                            onChanged: (bool? value) {
+                              setState(() {
+                                checkIsSmokingAllowed = value ?? false;
+                              });
+                            },
+                            activeColor: kDeepPurpleColor,
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   Visibility(
                     visible: widget.userType == "1",
                     child: Container(
@@ -1268,10 +1514,15 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                       ),
                     ),
                   ),
+
+                  // Hotel amenities
                   Visibility(
-                    visible: widget.userType == "1", // Show only for Hotels
-                    child: const ReusedProviderEstateContainer(
-                      hint: "Hotel Amenities",
+                    visible: widget.userType == "1",
+                    child: Container(
+                      key: _keyAmenitiesHotel,
+                      child: const ReusedProviderEstateContainer(
+                        hint: "Hotel Amenities",
+                      ),
                     ),
                   ),
                   Visibility(
@@ -1344,8 +1595,13 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                       ),
                     ),
                   ),
-                  const ReusedProviderEstateContainer(
-                    hint: "Location information",
+
+                  // Location
+                  Container(
+                    key: _keyLocation,
+                    child: const ReusedProviderEstateContainer(
+                      hint: "Location information",
+                    ),
                   ),
                   20.kH,
                   CustomCSCPicker(
@@ -1366,11 +1622,25 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                       });
                     },
                   ),
+
+                  // ===== Nearby Riyadh Metro (REFACTORED) =====
+                  RiyadhMetroPicker(
+                    key: _keyMetro,
+                    controller: _metroCtrl,
+                    isVisible:
+                        (cityValue ?? '').toLowerCase().trim() == 'riyadh',
+                  ),
+
                   40.kH,
+
+                  // Hotel rooms
                   Visibility(
                     visible: widget.userType == "1" ? true : false,
-                    child: const ReusedProviderEstateContainer(
-                        hint: "What We have ?"),
+                    child: Container(
+                      key: _keyHotelRooms,
+                      child: const ReusedProviderEstateContainer(
+                          hint: "What We have ?"),
+                    ),
                   ),
                   RoomTypeVisibility(
                     userType: widget.userType,
@@ -1456,8 +1726,14 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                   CustomButton(
                       text: getTranslated(context, "Next"),
                       onPressed: () async {
-                        // Check if all required fields are filled
+                        // Validate
                         if (!_areRequiredFieldsFilled()) {
+                          final anchor = _getFirstMissingAnchor();
+                          if (anchor != null) {
+                            _scrollTo(anchor);
+                            await Future.delayed(
+                                const Duration(milliseconds: 200));
+                          }
                           showDialog(
                             context: context,
                             builder: (BuildContext context) {
@@ -1468,11 +1744,13 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                               );
                             },
                           );
-                          return; // Stop further execution if fields are incomplete
+                          return;
                         }
 
-                        // Check if PDF has been uploaded
                         if (facilityPdfUrl == null || facilityPdfUrl!.isEmpty) {
+                          _scrollTo(_keyLegal);
+                          await Future.delayed(
+                              const Duration(milliseconds: 200));
                           showDialog(
                             context: context,
                             builder: (BuildContext context) {
@@ -1486,6 +1764,9 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                           return;
                         }
                         if (taxPdfUrl == null || taxPdfUrl!.isEmpty) {
+                          _scrollTo(_keyLegal);
+                          await Future.delayed(
+                              const Duration(milliseconds: 200));
                           showDialog(
                             context: context,
                             builder: (BuildContext context) {
@@ -1499,53 +1780,96 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                           return;
                         }
 
-                        // Show the custom loading dialog
-                        showCustomLoadingDialog(context);
+                        // Build Metro payload intent (only if Riyadh)
+                        final bool isRiyadh =
+                            (cityValue ?? '').toLowerCase().trim() == 'riyadh';
+                        List<String> selectedLines =
+                            _metroCtrl.chosenLines; // EN
+                        Map<String, List<String>> selectedStations =
+                            _metroCtrl.chosenStationsByLine; // EN
 
-                        String childType = '';
-                        String ID;
+                        if (isRiyadh &&
+                            selectedLines.isNotEmpty &&
+                            _hasPartialMetroSelection()) {
+                          final proceed = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text("Metro selection incomplete"),
+                              content: Text(
+                                "${getTranslated(context, "You selected at least one metro line but did not choose any station on it.")}\n\n"
+                                "${getTranslated(context, "Do you want to continue without saving any Metro info?")}",
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(false),
+                                  child: Text(getTranslated(
+                                      context, 'Choose stations')),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  child:
+                                      Text(getTranslated(context, 'Continue')),
+                                ),
+                              ],
+                            ),
+                          );
 
-                        // Determine childType based on userType
-                        if (widget.userType == "1") {
-                          childType = "Hottel"; // Corrected typo
-                        } else if (widget.userType == "2") {
-                          childType = "Coffee";
-                        } else {
-                          childType = "Restaurant";
+                          if (proceed != true) {
+                            _scrollTo(_keyMetro);
+                            return;
+                          } else {
+                            selectedLines = const [];
+                            selectedStations = const {};
+                          }
                         }
 
-                        String music = checkMusic ? "1" : "0";
+                        // --- BLOCKING LOADER (kept up until *everything* is done) ---
+                        showCustomLoadingDialog(
+                            context); // barrierDismissible: false in your impl
 
-                        User? user = FirebaseAuth.instance.currentUser;
+                        try {
+                          String childType;
+                          if (widget.userType == "1") {
+                            childType = "Hottel";
+                          } else if (widget.userType == "2") {
+                            childType = "Coffee";
+                          } else {
+                            childType = "Restaurant";
+                          }
 
-                        if (user != null) {
-                          String userID = user.uid;
-                          print("The userId is $userID");
+                          final music = checkMusic ? "1" : "0";
+                          final user = FirebaseAuth.instance.currentUser;
 
-                          DatabaseReference userRef = FirebaseDatabase.instance
+                          if (user == null) {
+                            throw Exception("User not logged in");
+                          }
+
+                          final userID = user.uid;
+                          final userRef = FirebaseDatabase.instance
                               .ref('App')
                               .child('User')
                               .child(userID);
-                          DataSnapshot snapshot = await userRef.get();
-                          Map<String, dynamic> userDetails = {};
+                          final snapshot = await userRef.get();
 
+                          Map<String, dynamic> userDetails = {};
                           if (snapshot.exists && snapshot.value != null) {
                             userDetails = Map<String, dynamic>.from(
                                 snapshot.value as Map);
                           }
 
-                          String? firstName = userDetails["FirstName"];
-                          String? lastName = userDetails["LastName"];
-                          String? typeAccount = userDetails["TypeAccount"];
+                          final String? firstName = userDetails["FirstName"];
+                          final String? lastName = userDetails["LastName"];
+                          final String? typeAccount =
+                              userDetails["TypeAccount"];
+
                           if (firstName == null ||
                               firstName.isEmpty ||
                               lastName == null ||
                               lastName.isEmpty) {
-                            // Dismiss the loading dialog
-                            Navigator.of(context).pop();
-
-                            // Show an error message if first name or last name is missing
-                            showDialog(
+                            // Keep loader up? We should dismiss before showing another dialog.
+                            if (Navigator.of(context).canPop())
+                              Navigator.of(context).pop();
+                            await showDialog(
                               context: context,
                               builder: (BuildContext context) {
                                 return AlertDialog(
@@ -1556,18 +1880,13 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                   ),
                                   actions: [
                                     TextButton(
-                                      onPressed: () {
-                                        Navigator.of(context)
-                                            .pop(); // Close the dialog
-                                      },
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(),
                                       child: const Text("Cancel"),
                                     ),
                                     ElevatedButton(
                                       onPressed: () {
-                                        Navigator.of(context)
-                                            .pop(); // Close the dialog first
-
-                                        // Navigate to PersonalInfoScreen with fetched user data
+                                        Navigator.of(context).pop();
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
@@ -1592,9 +1911,6 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                                       '',
                                               lastName:
                                                   userDetails['LastName'] ?? '',
-                                              // dateOfBirth:
-                                              //     userDetails['DateOfBirth'] ??
-                                              //         '',
                                               city: userDetails['City'] ?? '',
                                               country:
                                                   userDetails['Country'] ?? '',
@@ -1609,189 +1925,201 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                 );
                               },
                             );
-                            return; // Stop further execution if names are missing
+                            return;
                           }
 
-                          if (firstName != null && lastName != null) {
-                            // Add room types if selected
+                          // Build room listEntry for hotels
+                          if (widget.userType == "1") {
+                            listEntry.clear();
                             if (single) listEntry.add("Single");
                             if (double) listEntry.add("Double");
                             if (suite) listEntry.add("Suite");
                             if (family) listEntry.add("Hotel Apartments");
                             if (grandSuite) listEntry.add('Grand Suite');
                             if (businessSuite) listEntry.add('Business Suite');
-
-                            // Add estate with provided information
-                            await backendService.addEstate(
-                              childType: childType,
-                              idEstate: idEstate.toString(),
-                              nameAr: nameController.text,
-                              nameEn: enNameController.text,
-                              branchEn: enBranchController.text,
-                              branchAr: arBranchController.text,
-                              bioAr: bioController.text,
-                              bioEn: enBioController.text,
-                              country: countryValue ?? "",
-                              city: cityValue ?? "",
-                              state: stateValue ?? "",
-                              userType: widget.userType,
-                              userID: userID,
-                              typeAccount: typeAccount ?? "",
-                              taxNumber: taxNumberController.text,
-                              music: music,
-                              listTypeOfRestaurant: selectedRestaurantTypes,
-                              listSessions: selectedSessions,
-                              roomAllowance: roomAllowance,
-                              additionals: selectedAdditionals,
-                              listMusic: listMusic,
-                              listEntry: widget.userType != "1"
-                                  ? selectedEntries
-                                  : listEntry,
-                              price: singleController.text.isNotEmpty
-                                  ? singleController.text
-                                  : "150",
-                              priceLast: familyController.text.isNotEmpty
-                                  ? familyController.text
-                                  : "1500",
-                              ownerFirstName: firstName,
-                              ownerLastName: lastName,
-                              menuLink: menuLinkController.text,
-                              estatePhoneNumber: phoneNumberController.text,
-                              hasValet: hasValet,
-                              valetWithFees: valetWithFees,
-                              hasKidsArea: hasKidsArea,
-                              hasSwimmingPool: hasSwimmingPool,
-                              hasJacuzzi: hasJacuzzi,
-                              hasBarber: hasBarber,
-                              hasMassage: hasMassage,
-                              hasGym: hasGym,
-                              isSmokingAllowed: checkIsSmokingAllowed,
-                              isThereBreakfastLounge:
-                                  checkIsThereBreakfastLounge,
-                              isThereLaunchLounge: checkIsThereLaunchLounge,
-                              isThereDinnerLounge: checkIsThereDinnerLounge,
-                              facilityImageUrl: facilityPdfUrl ?? "",
-                              taxImageUrl:
-                                  taxPdfUrl ?? "", // Renamed for clarity
-                              breakfastLoungePrice: breakfastPrice.isNotEmpty
-                                  ? breakfastPrice
-                                  : "0",
-                              launchLoungePrice:
-                                  launchPrice.isNotEmpty ? launchPrice : "0",
-                              dinnerLoungePrice:
-                                  dinnerPrice.isNotEmpty ? dinnerPrice : "0",
-                              layoutId: _layoutId,
-                            );
-
-                            // Add individual rooms if selected
-                            ID = idEstate.toString();
-                            if (single) {
-                              await backendService.addRoom(
-                                estateId: idEstate.toString(),
-                                roomId: "1",
-                                roomName: "Single",
-                                roomPrice: singleController.text,
-                                roomBioAr: singleControllerBioAr.text,
-                                roomBioEn: singleControllerBioEn.text,
-                              );
-                            }
-                            if (double) {
-                              await backendService.addRoom(
-                                estateId: idEstate.toString(),
-                                roomId: "2",
-                                roomName: "Double",
-                                roomPrice: doubleController.text,
-                                roomBioAr: doubleControllerBioAr.text,
-                                roomBioEn: doubleControllerBioEn.text,
-                              );
-                            }
-                            if (suite) {
-                              await backendService.addRoom(
-                                estateId: idEstate.toString(),
-                                roomId: "3",
-                                roomName: "Suite",
-                                roomPrice: suiteController.text,
-                                roomBioAr: suiteControllerBioAr.text,
-                                roomBioEn: suiteControllerBioEn.text,
-                              );
-                            }
-                            if (family) {
-                              await backendService.addRoom(
-                                estateId: idEstate.toString(),
-                                roomId: "4",
-                                roomName: "Family",
-                                roomPrice: familyController.text,
-                                roomBioAr: familyControllerBioAr.text,
-                                roomBioEn: familyControllerBioEn.text,
-                              );
-                            }
-                            if (grandSuite) {
-                              await backendService.addRoom(
-                                estateId: idEstate.toString(),
-                                roomId: "4",
-                                roomName: "Grand Suite",
-                                roomPrice: grandSuiteController.text,
-                                roomBioAr: grandSuiteControllerBioAr.text,
-                                roomBioEn: grandSuiteControllerBioEn.text,
-                              );
-                            }
-                            if (businessSuite) {
-                              await backendService.addRoom(
-                                estateId: idEstate.toString(),
-                                roomId: "4",
-                                roomName: "Business Suite",
-                                roomPrice: businessSuiteController.text,
-                                roomBioAr: businessSuiteControllerBioAr.text,
-                                roomBioEn: businessSuiteControllerBioEn.text,
-                              );
-                            }
-                            await saveFacilities(idEstate.toString());
-                            idEstate = (idEstate! + 1);
-                            await backendService.updateEstateId(idEstate!);
-
-                            // Dismiss the loading dialog
-                            Navigator.of(context).pop();
-
-                            // Navigate to MapsScreen after successful addition
-                            // Navigator.of(context).push(
-                            //   MaterialPageRoute(
-                            //     builder: (context) => MapsScreen(
-                            //       id: ID,
-                            //       typeEstate: childType,
-                            //     ),
-                            //   ),
-                            // );
-                            if (_pendingLayout != null) {
-                              await backendService.uploadAutoCadLayout(
-                                childType: childType,
-                                estateId: ID,
-                                layout: _pendingLayout!,
-                              );
-                            }
-                            Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(
-                                  builder: (context) => MapsScreen(
-                                      id: ID, typeEstate: childType)),
-                              (Route<dynamic> route) => false,
-                            );
-                          } else {
-                            // Dismiss the loading dialog
-                            Navigator.of(context).pop();
-
-                            setState(() {
-                              btnLogin = Text('Failed to get User details');
-                            });
                           }
-                        } else {
-                          // Dismiss the loading dialog
-                          Navigator.of(context).pop();
 
-                          setState(() {
-                            btnLogin = Text('User not logged in');
-                          });
+                          // Add estate (await)
+                          await backendService.addEstate(
+                            childType: childType,
+                            idEstate: idEstate.toString(),
+                            nameAr: nameController.text,
+                            nameEn: enNameController.text,
+                            branchEn: enBranchController.text,
+                            branchAr: arBranchController.text,
+                            bioAr: bioController.text,
+                            bioEn: enBioController.text,
+                            country: countryValue ?? "",
+                            city: cityValue ?? "",
+                            state: stateValue ?? "",
+                            userType: widget.userType,
+                            userID: userID,
+                            typeAccount: typeAccount ?? "",
+                            taxNumber: taxNumberController.text,
+                            music: music,
+                            listTypeOfRestaurant: selectedRestaurantTypes,
+                            listSessions: selectedSessions,
+                            roomAllowance: roomAllowance,
+                            additionals: selectedAdditionals,
+                            listMusic: listMusic,
+                            listEntry: widget.userType != "1"
+                                ? selectedEntries
+                                : listEntry,
+                            price: singleController.text.isNotEmpty
+                                ? singleController.text
+                                : "150",
+                            priceLast: familyController.text.isNotEmpty
+                                ? familyController.text
+                                : "1500",
+                            dateOfPhotography:
+                                _dateOfPhotographyController.text,
+                            dayOfPhotography: _dayOfPhotography ?? "",
+                            timeOfPhotography:
+                                _timeOfPhotographyController.text,
+                            ownerFirstName: firstName,
+                            ownerLastName: lastName,
+                            menuLink: menuLinkController.text,
+                            estatePhoneNumber: phoneNumberController.text,
+                            hasValet: hasValet,
+                            valetWithFees: valetWithFees,
+                            hasKidsArea: hasKidsArea,
+                            hasSwimmingPool: hasSwimmingPool,
+                            hasJacuzzi: hasJacuzzi,
+                            hasBarber: hasBarber,
+                            hasMassage: hasMassage,
+                            hasGym: hasGym,
+                            isSmokingAllowed: checkIsSmokingAllowed,
+                            isThereBreakfastLounge: checkIsThereBreakfastLounge,
+                            isThereLaunchLounge: checkIsThereLaunchLounge,
+                            isThereDinnerLounge: checkIsThereDinnerLounge,
+                            facilityImageUrl: facilityPdfUrl ?? "",
+                            taxImageUrl: taxPdfUrl ?? "",
+                            breakfastLoungePrice: breakfastPrice.isNotEmpty
+                                ? breakfastPrice
+                                : "0",
+                            launchLoungePrice:
+                                launchPrice.isNotEmpty ? launchPrice : "0",
+                            dinnerLoungePrice:
+                                dinnerPrice.isNotEmpty ? dinnerPrice : "0",
+                            layoutId: _layoutId,
+                            metroCity: isRiyadh ? 'Riyadh' : '',
+                            metroLines: isRiyadh ? selectedLines : const [],
+                            metroStationsByLine:
+                                isRiyadh ? selectedStations : const {},
+                          );
+
+                          // Add rooms (await each)
+                          final String ID = idEstate.toString();
+                          if (single) {
+                            await backendService.addRoom(
+                              estateId: ID,
+                              roomId: "1",
+                              roomName: "Single",
+                              roomPrice: singleController.text,
+                              roomBioAr: singleControllerBioAr.text,
+                              roomBioEn: singleControllerBioEn.text,
+                            );
+                          }
+                          if (double) {
+                            await backendService.addRoom(
+                              estateId: ID,
+                              roomId: "2",
+                              roomName: "Double",
+                              roomPrice: doubleController.text,
+                              roomBioAr: doubleControllerBioAr.text,
+                              roomBioEn: doubleControllerBioEn.text,
+                            );
+                          }
+                          if (suite) {
+                            await backendService.addRoom(
+                              estateId: ID,
+                              roomId: "3",
+                              roomName: "Suite",
+                              roomPrice: suiteController.text,
+                              roomBioAr: suiteControllerBioAr.text,
+                              roomBioEn: suiteControllerBioEn.text,
+                            );
+                          }
+                          if (family) {
+                            await backendService.addRoom(
+                              estateId: ID,
+                              roomId: "4",
+                              roomName: "Family",
+                              roomPrice: familyController.text,
+                              roomBioAr: familyControllerBioAr.text,
+                              roomBioEn: familyControllerBioEn.text,
+                            );
+                          }
+                          if (grandSuite) {
+                            await backendService.addRoom(
+                              estateId: ID,
+                              roomId: "5",
+                              roomName: "Grand Suite",
+                              roomPrice: grandSuiteController.text,
+                              roomBioAr: grandSuiteControllerBioAr.text,
+                              roomBioEn: grandSuiteControllerBioEn.text,
+                            );
+                          }
+                          if (businessSuite) {
+                            await backendService.addRoom(
+                              estateId: ID,
+                              roomId: "6",
+                              roomName: "Business Suite",
+                              roomPrice: businessSuiteController.text,
+                              roomBioAr: businessSuiteControllerBioAr.text,
+                              roomBioEn: businessSuiteControllerBioEn.text,
+                            );
+                          }
+
+                          // Facilities
+                          await saveFacilities(ID);
+
+                          // Increment ID (await)
+                          idEstate = (idEstate! + 1);
+                          await backendService.updateEstateId(idEstate!);
+
+                          // 🔒 Upload AutoCAD layout BEFORE dismissing loader
+                          if (_pendingLayout != null) {
+                            await backendService.uploadAutoCadLayout(
+                              childType: childType,
+                              estateId: ID,
+                              layout: _pendingLayout!,
+                            );
+                          }
+
+                          // ✅ Everything is done — now dismiss loader and navigate
+                          if (mounted && Navigator.of(context).canPop()) {
+                            Navigator.of(context)
+                                .pop(); // dismiss loading dialog
+                          }
+                          if (!mounted) return;
+
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                                builder: (context) =>
+                                    MapsScreen(id: ID, typeEstate: childType)),
+                            (Route<dynamic> route) => false,
+                          );
+                        } catch (e) {
+                          // Make sure loader is dismissed on error
+                          if (mounted && Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          }
+                          // Surface a readable error
+                          await showDialog(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text("Failed to add estate"),
+                              content: Text(e.toString()),
+                              actions: [
+                                TextButton(
+                                    onPressed: () => Navigator.of(ctx).pop(),
+                                    child: const Text("OK")),
+                              ],
+                            ),
+                          );
                         }
                       })
-                  // Removed the commented-out Align widget
                 ],
               ),
             ),

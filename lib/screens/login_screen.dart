@@ -1,19 +1,18 @@
 import 'package:daimond_host_provider/screens/sign_in_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
-
+import 'package:daimond_host_provider/widgets/reused_textform_field.dart';
+import 'package:daimond_host_provider/widgets/reused_phone_number_widget.dart';
+import 'package:daimond_host_provider/constants/styles.dart';
+import 'package:daimond_host_provider/constants/colors.dart';
+import 'package:daimond_host_provider/widgets/reused_elevated_button.dart';
 import 'package:icons_plus/icons_plus.dart';
 import 'package:intl_phone_number_input/intl_phone_number_input.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../backend/login_method.dart';
-import '../constants/colors.dart';
-import '../constants/styles.dart';
 import '../localization/language_constants.dart';
 import '../widgets/language_translator_widget.dart';
-import '../widgets/reused_elevated_button.dart';
-import '../widgets/reused_phone_number_widget.dart';
-import '../widgets/reused_textform_field.dart';
 import 'forgot_password.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -79,7 +78,8 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 Expanded(
                     flex: 2, child: Container(color: Colors.grey.shade200)),
-                Expanded(flex: 1, child: Container(color: kPrimaryColor)),
+                const Expanded(
+                    flex: 1, child: ColoredBox(color: kPrimaryColor)),
               ],
             ),
 
@@ -269,7 +269,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                         }
                                       },
                                     ),
+
                                     const SizedBox(height: 10),
+
+                                    // ⬇️ SEPARATE BUTTONS (Fixed)
                                     TextButton(
                                       onPressed: () {
                                         Navigator.push(
@@ -280,45 +283,47 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ),
                                         );
                                       },
-                                      child: Column(
-                                        children: [
-                                          Text(
-                                            getTranslated(
-                                                context, 'Forgot Password?'),
+                                      child: Text(
+                                        getTranslated(
+                                            context, 'Forgot Password?'),
+                                        style: const TextStyle(
+                                          color: Colors.blue,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(getTranslated(
+                                            context, "Are you new here? ")),
+                                        TextButton(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const SignInScreen(),
+                                              ),
+                                            );
+                                          },
+                                          style: TextButton.styleFrom(
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: const Size(0, 0),
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
+                                          ),
+                                          child: Text(
+                                            getTranslated(context, "Sign in"),
                                             style: const TextStyle(
                                               color: Colors.blue,
                                               fontWeight: FontWeight.bold,
                                             ),
                                           ),
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Text(getTranslated(context,
-                                                  "Are you new here? ")),
-                                              GestureDetector(
-                                                onTap: () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (_) =>
-                                                          const SignInScreen(),
-                                                    ),
-                                                  );
-                                                },
-                                                child: Text(
-                                                  getTranslated(
-                                                      context, "Sign in"),
-                                                  style: const TextStyle(
-                                                    color: Colors.blue,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -345,7 +350,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                       text: getTranslated(context,
                                           'Login through phone number'),
                                       onPressed: () {
-                                        if (_formKey.currentState!.validate()) {
+                                        if (_formKey.currentState!.validate() &&
+                                            _phoneNumber != null &&
+                                            _phoneNumber!.isNotEmpty) {
                                           _loginMethod.loginWithPhone(
                                             phoneNumber: _phoneNumber!,
                                             context: context,
@@ -395,22 +402,26 @@ class _LoginScreenState extends State<LoginScreen> {
                             if (await canLaunch(url)) {
                               await launch(url);
                             } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text("Could not open link")),
-                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text("Could not open link")),
+                                );
+                              }
                             }
                           },
                           icon: const Icon(Icons.get_app),
                           label: Text(getTranslated(context, "Download")),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: kPrimaryColor,
-                            side: BorderSide(color: kPrimaryColor),
+                            side: const BorderSide(color: kPrimaryColor),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 10),
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
                             textStyle:
                                 const TextStyle(fontWeight: FontWeight.w600),
                           ),

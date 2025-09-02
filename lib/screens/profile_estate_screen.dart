@@ -114,6 +114,131 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
   int _currentImageIndex = 0;
   List<Map<String, dynamic>> _feedbackList = [];
 
+  // ===== Metro helpers (colors + AR labels) =====
+  final Map<String, Color> _lineColors = const {
+    'Blue': Color(0xFF0072CE),
+    'Green': Color(0xFF2E7D32),
+    'Red': Color(0xFFD32F2F),
+    'Yellow': Color(0xFFF9A825),
+    'Orange': Color(0xFFEF6C00),
+    'Purple': Color(0xFF6A1B9A),
+  };
+
+  final Map<String, String> _lineLabelAr = const {
+    'Blue': 'الأزرق',
+    'Red': 'الأحمر',
+    'Orange': 'البرتقالي',
+    'Yellow': 'الأصفر',
+    'Green': 'الأخضر',
+    'Purple': 'البنفسجي',
+  };
+
+  // AR station labels (subset; includes ones from your examples)
+  final Map<String, String> _stationLabelAr = {
+    // Blue
+    'SAB Bank': 'بنك الأول',
+    'DR SULAIMAN AL HABIB': 'د. سليمان الحبيب',
+    'KAFD': 'المركز المالي',
+    'Al Murooj': 'المروج',
+    'King Fahd District': 'حي الملك فهد',
+    'King Fahd District 2': 'حي الملك فهد 2',
+    'STC': 'STC',
+    'Al Wurud 2': 'الورود 2',
+    'Al Urubah': 'العروبة',
+    'Alinma Bank': 'مصرف الإنماء',
+    'Bank Albilad': 'بنك البلاد',
+    'King Fahd Library': 'مكتبة الملك فهد',
+    'Ministry of Interior': 'وزارة الداخلية',
+    'Al Muorabba': 'المربع',
+    'Passport Department': 'الجوازات',
+    'National Museum': 'المتحف الوطني',
+    'Al Batha': 'البطحاء',
+    'Qasr Al Hokm': 'قصر الحكم',
+    'Al Owd': 'العود',
+    'Skirinah': 'سكيرينة',
+    'Manfouhah': 'منفوحة',
+    'Al Iman Hospital': 'مستشفى الإيمان',
+    'Transportation Center': 'مركز النقل العام',
+    'Al Aziziah': 'العزيزية',
+    'Ad Dar Al Baida': 'الدار البيضاء',
+    // Red
+    'King Saud University': 'جامعة الملك سعود',
+    'King Salman Oasis': 'واحة الملك سلمان',
+    'KACST': 'المدينة التقنية',
+    'At Takhassussi': 'التخصصي',
+    'Al Wurud': 'الورود',
+    'King Abdulaziz Road': 'طريق الملك عبدالعزيز',
+    'Ministry of Education': 'وزارة التعليم',
+    'An Nuzhah': 'النزهة',
+    'Riyadh Exhibition Center': 'مركز الرياض للمعارض',
+    'Khalid Bin Alwaleed Road': 'طريق خالد بن الوليد',
+    'Al Hamra': 'الحمراء',
+    'Al khaleej': 'الخليج',
+    'Ishbiliyah': 'إشبيلية',
+    'King Fahd Sport City': 'مدينة الملك فهد الرياضية',
+    // Orange
+    'Jeddah Road': 'طريق جدة',
+    'Tuwaiq': 'طويق',
+    'Ad Douh': 'الدوح',
+    'Aishah bint Abi Bakr Street': 'شارع عائشة بنت أبي بكر',
+    'Dhahrat Al Badiah': 'ظهرة البديعة',
+    'Sultanah': 'سلطانة',
+    'Al Jarradiyah': 'الجرادية',
+    'Courts Complex': 'مجمع المحاكم',
+    'Al Hilla': 'الحلة',
+    'Al Margab': 'المرقب',
+    'As Salhiyah': 'الصالحية',
+    'First Industrial City': 'المدينة الصناعية الأولى',
+    'Railway': 'سكة الحديد',
+    'Al Malaz': 'الملز',
+    'Jarir District': 'حي جرير',
+    'Al Rajhi Grand Mosque': 'جامع الراجحي',
+    'Harun ar Rashid Road': 'طريق هارون الرشيد',
+    'An Naseem': 'النسيم',
+    'Hassan Bin Thabit Street': 'شارع حسان بن ثابت',
+    'Khashm Al An': 'خشم العان',
+    // Yellow
+    'Ar Rabi': 'الربيع',
+    'Uthman Bin Affan Road': 'طريق عثمان بن عفان',
+    'SABIC': 'سابك',
+    'PNU 1': 'جامعة الأميرة نورة 1',
+    'PNU 2': 'جامعة الأميرة نورة 2',
+    'Airport T5': 'المطار صالة 5',
+    'Airport T3-4': 'المطار صالات 3-4',
+    'Airport T1-2': 'المطار صالات 1-2',
+    // Green
+    'King Salman Park': 'حديقة الملك سلمان',
+    'As Sulimaniyah': 'السليمانية',
+    'Ad Dhabab': 'الضباب',
+    'Abu Dhabi square': 'ميدان أبو ظبي',
+    'Officers Club': 'نادي الضباط',
+    'GOSI': 'التأمينات الاجتماعية',
+    'Al Wizarat': 'الوزارات',
+    'Ministry of Defence': 'وزارة الدفاع',
+    'King Abdulaziz Hospital': 'مستشفى الملك عبدالعزيز',
+    'Ministry of Finance': 'وزارة المالية',
+    // Purple
+    'Granadia': 'غرناطة',
+    'Al Yarmuk': 'اليرموك',
+    'Al Andalus': 'الأندلس',
+    'Khurais Road': 'طريق خريص',
+    'As Salam': 'السلام',
+  };
+
+  bool _isArabic() {
+    try {
+      return Localizations.localeOf(context).languageCode.toLowerCase() == 'ar';
+    } catch (_) {
+      return Directionality.of(context) == TextDirection.RTL;
+    }
+  }
+
+  String _displayLineLabel(String line) =>
+      _isArabic() ? (_lineLabelAr[line] ?? line) : line;
+
+  String _displayStationLabel(String st) =>
+      _isArabic() ? (_stationLabelAr[st] ?? st) : st;
+
   @override
   void initState() {
     super.initState();
@@ -125,7 +250,6 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
   }
 
   Future<void> _fetchRooms() async {
-    // Note: unify the path to match the same one you use when saving in EditEstateHotel
     DatabaseReference roomsRef = FirebaseDatabase.instance
         .ref('App/Estate/Hottel/${widget.estateId}/Rooms');
 
@@ -137,7 +261,7 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
         Rooms room = Rooms(
           id: value["ID"] ?? "",
           name: value["Name"] ?? "",
-          nameEn: value["NameEn"] ?? "", // If you store "NameEn" differently
+          nameEn: value["NameEn"] ?? "",
           price: value["Price"] ?? "",
           bio: value["BioAr"] ?? "",
           bioEn: value["BioEn"] ?? "",
@@ -171,7 +295,6 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
     DatabaseReference estateRef = FirebaseDatabase.instance
         .ref('App/Estate/$estateTypePath/${widget.estateId}');
 
-    // Listen for any changes
     estateRef.onValue.listen((event) {
       if (event.snapshot.exists && event.snapshot.value != null) {
         setState(() {
@@ -182,13 +305,11 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
         setState(() {
           isLoading = false;
         });
-        print('No data found for this estate.');
       }
     }, onError: (error) {
       setState(() {
         isLoading = false;
       });
-      print('Error listening to estate data: $error');
     });
   }
 
@@ -209,16 +330,12 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
           estateTypePath = widget.estateType;
       }
 
-      print(
-          "Fetching data for estateTypePath: $estateTypePath, estateId: ${widget.estateId}");
-
       DatabaseReference estateRef = FirebaseDatabase.instance
           .ref('App/Estate/$estateTypePath/${widget.estateId}');
 
       DataSnapshot snapshot = await estateRef.get();
 
       if (snapshot.exists && snapshot.value != null) {
-        print("Raw Estate Data: ${snapshot.value}");
         setState(() {
           estate = Map<String, dynamic>.from(snapshot.value as Map);
           isLoading = false;
@@ -227,13 +344,11 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
         setState(() {
           isLoading = false;
         });
-        print('No data found for this estate.');
       }
     } catch (e) {
       setState(() {
         isLoading = false;
       });
-      print('Error fetching estate data: $e');
     }
   }
 
@@ -264,17 +379,14 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
         existingImages.add(item.name);
       }
 
-      // Sort the images numerically
       existingImages.sort((a, b) {
         int numA = int.tryParse(a.split('.').first) ?? 0;
         int numB = int.tryParse(b.split('.').first) ?? 0;
         return numA.compareTo(numB);
       });
 
-      print("Existing images in storage: $existingImages");
       return existingImages;
     } catch (e) {
-      print("Error fetching images: $e");
       return [];
     }
   }
@@ -282,26 +394,21 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
   /// Try to load `ImageUrls` from RTDB first; if missing, fall back to Storage.
   Future<void> _fetchImageUrls() async {
     try {
-      // determine your path (you already do similar in _listenToEstateData)
       String typePath = widget.estateType == "1"
           ? "Hottel"
           : (widget.estateType == "2" ? "Coffee" : "Restaurant");
-      // 1) read from Realtime Database
       final dbRef = FirebaseDatabase.instance
           .ref("App/Estate/$typePath/${widget.estateId}/ImageUrls");
       final snapshot = await dbRef.get();
       if (snapshot.exists && snapshot.value != null) {
-        // snapshot.value is List<dynamic> of URLs
         final List<dynamic> dbList = List<dynamic>.from(snapshot.value as List);
         setState(() => _imageUrls = dbList.cast<String>());
         return;
       }
     } catch (e) {
-      print("Error fetching ImageUrls from DB: $e");
-      // fall through to Storage fallback
+      // fall through
     }
 
-    // 2) fallback: list & download from Storage
     List<String> storageUrls = [];
     try {
       final existing = await fetchExistingImages();
@@ -311,9 +418,7 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
             .getDownloadURL();
         storageUrls.add(url);
       }
-    } catch (e) {
-      print("Error fetching image URLs from Storage: $e");
-    }
+    } catch (e) {}
     setState(() => _imageUrls = storageUrls);
   }
 
@@ -322,8 +427,8 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => FullScreenImageViewer(
-          imageUrls: _imageUrls, // Pass all images
-          initialIndex: _currentImageIndex, // Initial image index
+          imageUrls: _imageUrls,
+          initialIndex: _currentImageIndex,
         ),
       ),
     );
@@ -360,25 +465,133 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
           _feedbackList = feedbacks;
         });
       }
-    } catch (e) {
-      print('Error fetching feedback: $e');
-    }
+    } catch (e) {}
   }
 
   void _launchMaps() async {
-    print('Latitude: ${widget.lat}, Longitude: ${widget.lon}');
     String googleUrl =
         'https://www.google.com/maps/search/?api=1&query=${widget.lat},${widget.lon}';
-
     try {
-      bool launched = await launch(googleUrl, forceWebView: false);
-      print('Launch successful: $launched');
-    } catch (e) {
-      print('Error launching maps: $e');
-    }
+      await launch(googleUrl, forceWebView: false);
+    } catch (e) {}
   }
 
-  // These helper functions translate the options based on the locale.
+  // ====== Metro: parse and render ======
+  List<String> _parseStations(dynamic raw) {
+    if (raw == null) return const [];
+    if (raw is List) {
+      return raw
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    // comma-separated
+    return raw
+        .toString()
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+  }
+
+  bool _hasMetroData(Map<String, dynamic>? metro) {
+    if (metro == null) return false;
+    final lines = metro['Lines'];
+    if (lines is! Map) return false;
+    for (final entry in lines.entries) {
+      final stations = _parseStations(entry.value['Stations']);
+      if (stations.isNotEmpty) return true;
+    }
+    return false;
+  }
+
+  Widget _buildMetroSection(Map<String, dynamic> metro) {
+    final isAr = _isArabic();
+    final linesMap = (metro['Lines'] ?? {}) as Map;
+    final List<Widget> lineCards = [];
+
+    for (final MapEntry entry in linesMap.entries) {
+      final String lineName = entry.key.toString();
+      final dynamic node = entry.value;
+      final List<String> stations =
+          _parseStations(node is Map ? node['Stations'] : null);
+      if (stations.isEmpty) continue;
+
+      final Color lineColor = _lineColors[lineName] ?? kDeepPurpleColor;
+
+      lineCards.add(
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: lineColor.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: lineColor.withOpacity(0.3)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                          color: lineColor, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      isAr ? (_lineLabelAr[lineName] ?? lineName) : lineName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: stations
+                      .map(
+                        (st) => Chip(
+                          label: Text(_displayStationLabel(st)),
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 0),
+                          backgroundColor: Colors.white,
+                          side: BorderSide(color: lineColor.withOpacity(0.35)),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (lineCards.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        16.kH,
+        Text(
+          getTranslated(context, "Nearby Riyadh Metro"),
+          style: kTeritary.copyWith(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        8.kH,
+        Column(children: lineCards),
+      ],
+    );
+  }
+
+  // ===== Translation helpers for existing chips =====
   String getTranslatedTypeOfRestaurant(BuildContext context, String types) {
     bool isArabic = Localizations.localeOf(context).languageCode == 'ar';
     List<String> typeList =
@@ -395,30 +608,22 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
 
   String getTranslatedSessions(BuildContext context, String types) {
     bool isArabic = Localizations.localeOf(context).languageCode == 'ar';
-
-    // Mapping for the English UI values:
     Map<String, String> uiMapping = {
       'Internal sessions': 'Indoor sessions',
       'External sessions': 'Outdoor sessions'
     };
-
-    // Split the sessions string from the database (it may have 1, 2 or 3 comma-separated values).
     List<String> typeList =
         types.split(',').map((type) => type.trim()).toList();
-
     List translatedTypes = typeList.map((type) {
-      // For English, if the type matches one of our keys, return the mapped value.
       if (!isArabic && uiMapping.containsKey(type)) {
         return uiMapping[type]!;
       }
-      // Otherwise, fallback to what is defined in the sessionsOptions
       final match = sessionsOptions.firstWhere(
         (option) => option['label'] == type,
         orElse: () => {'label': type, 'labelAr': type},
       );
       return isArabic ? match['labelAr'] : match['label'];
     }).toList();
-
     return translatedTypes.join(', ');
   }
 
@@ -464,59 +669,10 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
     return translatedTypes.join(', ');
   }
 
-  // When a chip is tapped, show a full list of options (e.g., full list of restaurants)
-  // void _showOptionsList(String title, List<Map<String, dynamic>> options) {
-  //   final bool isArabic = Localizations.localeOf(context).languageCode == 'ar';
-  //   showModalBottomSheet(
-  //     context: context,
-  //     shape: const RoundedRectangleBorder(
-  //         borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-  //     builder: (context) {
-  //       return Container(
-  //         height: MediaQuery.of(context).size.height * 0.5,
-  //         padding: const EdgeInsets.all(16),
-  //         child: Column(
-  //           crossAxisAlignment: CrossAxisAlignment.start,
-  //           children: [
-  //             Center(
-  //               child: Container(
-  //                 width: 40,
-  //                 height: 4,
-  //                 margin: const EdgeInsets.only(bottom: 16),
-  //                 decoration: BoxDecoration(
-  //                   color: Colors.grey[300],
-  //                   borderRadius: BorderRadius.circular(2),
-  //                 ),
-  //               ),
-  //             ),
-  //             Text(title,
-  //                 style: const TextStyle(
-  //                     fontSize: 20, fontWeight: FontWeight.bold)),
-  //             const SizedBox(height: 16),
-  //             Expanded(
-  //               child: ListView.builder(
-  //                 itemCount: options.length,
-  //                 itemBuilder: (context, index) {
-  //                   final option = options[index];
-  //                   return ListTile(
-  //                     title: Text(
-  //                         isArabic ? option['labelAr']! : option['label']!),
-  //                   );
-  //                 },
-  //               ),
-  //             )
-  //           ],
-  //         ),
-  //       );
-  //     },
-  //   );
-  // }
   void _showOptionsList(String title, List<Map<String, dynamic>> options) {
     final bool isArabic = Localizations.localeOf(context).languageCode == 'ar';
-    // Get the options based on the estate data from the Firebase database
     List<Map<String, dynamic>> estateOptions = [];
 
-    // Check if estate data contains the keys and map them accordingly
     if (title == getTranslated(context, "Type of Restaurant")) {
       estateOptions = restaurantOptions
           .where((option) {
@@ -554,7 +710,6 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
           .toList();
     }
 
-    // Show the filtered options in the modal sheet
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -588,11 +743,9 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                   itemCount: estateOptions.length,
                   itemBuilder: (context, index) {
                     final option = estateOptions[index];
-                    // Get the label from option, using Arabic label if needed.
                     String displayLabel = isArabic
                         ? option['labelAr'] ?? option['label']
                         : option['label'] ?? "";
-                    // For sessions in English, remap certain labels.
                     if (!isArabic &&
                         title == getTranslated(context, "Sessions")) {
                       if (displayLabel == "Internal sessions") {
@@ -601,9 +754,7 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                         displayLabel = "Outdoor sessions";
                       }
                     }
-                    return ListTile(
-                      title: Text(displayLabel),
-                    );
+                    return ListTile(title: Text(displayLabel));
                   },
                 ),
               )
@@ -613,20 +764,6 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
       },
     );
   }
-
-  // Widget _buildShimmerLoader() {
-  //   return Shimmer.fromColors(
-  //     baseColor: Colors.grey[300]!,
-  //     highlightColor: Colors.grey[100]!,
-  //     child: Container(
-  //       height: 200,
-  //       decoration: BoxDecoration(
-  //         borderRadius: BorderRadius.circular(15),
-  //         color: Colors.white,
-  //       ),
-  //     ),
-  //   );
-  // }
 
   @override
   Widget build(BuildContext context) {
@@ -638,6 +775,10 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
         ? (estate['BioAr'] ?? widget.bioAr)
         : (estate['BioEn'] ?? widget.bioEn);
     final objProvider = Provider.of<GeneralProvider>(context, listen: true);
+
+    final Map<String, dynamic>? metro = estate['Metro'] == null
+        ? null
+        : Map<String, dynamic>.from(estate['Metro'] as Map);
 
     return Scaffold(
       appBar: AppBar(
@@ -653,11 +794,6 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
             IconButton(
               icon: const Icon(Icons.edit, color: kDeepPurpleColor),
               onPressed: () async {
-                print("Navigating to EditEstate with the following details:");
-                print("Estate Object: $estate");
-                print("LstRooms: $LstRooms");
-                print("Estate Type: ${widget.estateType}");
-                print("Estate ID: ${widget.estateId}");
                 await Navigator.of(context).push(MaterialPageRoute(
                   builder: (context) => EditEstate(
                     objEstate: estate,
@@ -674,11 +810,6 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
             IconButton(
               icon: const Icon(Icons.edit, color: kDeepPurpleColor),
               onPressed: () async {
-                print("Navigating to EditEstate with the following details:");
-                print("Estate Object: $estate");
-                print("LstRooms: $LstRooms");
-                print("Estate Type: ${widget.estateType}");
-                print("Estate ID: ${widget.estateId}");
                 await Navigator.of(context).push(MaterialPageRoute(
                   builder: (context) => EditEstateHotel(
                     objEstate: estate,
@@ -691,20 +822,6 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                 _fetchImageUrls();
               },
             ),
-          // IconButton(
-          //   icon: const Icon(Icons.chat, color: kDeepPurpleColor),
-          //   onPressed: () {
-          //     Navigator.of(context).push(
-          //       MaterialPageRoute(
-          //         builder: (context) => EstateChatScreen(
-          //           estateId: widget.estateId,
-          //           estateNameEn: widget.nameEn,
-          //           estateNameAr: widget.nameAr,
-          //         ),
-          //       ),
-          //     );
-          //   },
-          // ),
         ],
       ),
       body: isLoading
@@ -745,13 +862,13 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                 await _fetchImageUrls();
               },
               child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Image carousel with gradient overlay
-                      // Displaying the fetched images in a carousel
+                      // Images
                       _imageUrls.isEmpty
                           ? Container(
                               height: 200,
@@ -784,8 +901,8 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                                     },
                                     itemBuilder: (context, index) {
                                       return GestureDetector(
-                                        onTap: () => _viewImage(
-                                            _imageUrls[index]), // On click
+                                        onTap: () =>
+                                            _viewImage(_imageUrls[index]),
                                         child: CachedNetworkImage(
                                           imageUrl: _imageUrls[index],
                                           cacheManager: _cacheManager,
@@ -854,7 +971,7 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                           },
                           child: AutoSizeText(
                             getTranslated(context, "Menu Link"),
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: Colors.blue,
                               decoration: TextDecoration.underline,
                               fontWeight: FontWeight.bold,
@@ -879,163 +996,8 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      // Info chips section using the new InfoChip widget with onTap callbacks
-                      // Wrap(
-                      //   spacing: 10.0,
-                      //   runSpacing: 10.0,
-                      //   children: [
-                      //     if (widget.type == "3")
-                      //       InfoChip(
-                      //         icon: Icons.fastfood,
-                      //         label: getTranslatedTypeOfRestaurant(
-                      //           context,
-                      //           estate['TypeofRestaurant'] ??
-                      //               widget.typeOfRestaurant,
-                      //         ),
-                      //         onTap: () => _showOptionsList(
-                      //           getTranslated(context, "Type of Restaurant"),
-                      //           restaurantOptions.cast<Map<String, dynamic>>(),
-                      //         ),
-                      //       ),
-                      //     if (widget.type == "3" || widget.type == "2")
-                      //       InfoChip(
-                      //         icon: Icons.home,
-                      //         label: getTranslatedSessions(
-                      //           context,
-                      //           estate['Sessions'] ?? widget.sessions,
-                      //         ),
-                      //         onTap: () => _showOptionsList(
-                      //           getTranslated(context, "Sessions"),
-                      //           sessionsOptions.cast<Map<String, dynamic>>(),
-                      //         ),
-                      //       ),
-                      //     InfoChip(
-                      //       icon: Icons.grain,
-                      //       label: widget.type == "1"
-                      //           ? getTranslatedHotelEntry(
-                      //               context,
-                      //               estate['Entry'] ?? widget.entry,
-                      //             )
-                      //           : getTranslatedEntry(
-                      //               context,
-                      //               estate['Entry'] ?? widget.entry,
-                      //             ),
-                      //       onTap: () {
-                      //         if (widget.type == "1") {
-                      //           _showOptionsList(
-                      //             getTranslated(context, "Hotel Entry"),
-                      //             hotelEntryOptions.cast<Map<String, dynamic>>(),
-                      //           );
-                      //         } else {
-                      //           _showOptionsList(
-                      //             getTranslated(context, "Entry"),
-                      //             entryOptions.cast<Map<String, dynamic>>(),
-                      //           );
-                      //         }
-                      //       },
-                      //     ),
-                      //     InfoChip(
-                      //       icon: Icons.music_note,
-                      //       label: (widget.type == "3" || widget.type == "1")
-                      //           ? ((estate['Music'] ?? widget.music) == "1"
-                      //               ? getTranslated(context, "There is music")
-                      //               : getTranslated(context, "There is no music"))
-                      //           : (widget.type == "2"
-                      //               ? ((estate['Music'] ?? widget.music) == "1"
-                      //                   ? getTranslatedCoffeeMusicOptions(
-                      //                       context,
-                      //                       estate['Lstmusic'] ?? widget.lstMusic,
-                      //                     )
-                      //                   : getTranslated(
-                      //                       context, "There is no music"))
-                      //               : getTranslated(
-                      //                   context, "There is no music")),
-                      //     ),
-                      //     if (widget.type != "1")
-                      //       InfoChip(
-                      //         icon: Icons.child_care,
-                      //         label: (estate['HasKidsArea'] ??
-                      //                     widget.hasKidsArea) ==
-                      //                 "1"
-                      //             ? getTranslated(context, "We have kids area")
-                      //             : getTranslated(
-                      //                 context, "We don't have kids area"),
-                      //       ),
-                      //     if (widget.type == "1")
-                      //       InfoChip(
-                      //         icon: Icons.bathtub,
-                      //         label: (estate['HasJacuzziInRoom'] ??
-                      //                     widget.hasJacuzziInRoom) ==
-                      //                 "1"
-                      //             ? getTranslated(context, "We have jacuzzi")
-                      //             : getTranslated(
-                      //                 context, "We don't have jacuzzi"),
-                      //       ),
-                      //     InfoChip(
-                      //       icon: Icons.directions_car,
-                      //       label: (estate['HasValet'] ?? widget.hasValet) == "1"
-                      //           ? getTranslated(
-                      //               context, "Valet service available")
-                      //           : getTranslated(
-                      //               context, "No valet service available"),
-                      //     ),
-                      //     if ((estate['HasValet'] ?? widget.hasValet) == "1")
-                      //       InfoChip(
-                      //         icon: Icons.money,
-                      //         label: (estate['ValetWithFees'] ??
-                      //                     widget.valetWithFees) ==
-                      //                 "1"
-                      //             ? getTranslated(context, "Valet is not free")
-                      //             : getTranslated(context, "Valet is free"),
-                      //       ),
-                      //     if (widget.type == "1")
-                      //       InfoChip(
-                      //         icon: Icons.pool,
-                      //         label: (estate['HasSwimmingPool'] ??
-                      //                     widget.hasSwimmingPool) ==
-                      //                 "1"
-                      //             ? getTranslated(
-                      //                 context, "We have swimming pool")
-                      //             : getTranslated(
-                      //                 context, "We don't have swimming pool"),
-                      //       ),
-                      //     if (widget.type == "1")
-                      //       InfoChip(
-                      //         icon: Icons.spa,
-                      //         label:
-                      //             (estate['HasMassage'] ?? widget.hasMassage) ==
-                      //                     "1"
-                      //                 ? getTranslated(context, "We have massage")
-                      //                 : getTranslated(
-                      //                     context, "We don't have massage"),
-                      //       ),
-                      //     if (widget.type == "1")
-                      //       InfoChip(
-                      //         icon: Icons.fitness_center,
-                      //         label: (estate['HasGym'] ?? widget.hasGym) == "1"
-                      //             ? getTranslated(context, "We have gym")
-                      //             : getTranslated(context, "We don't have gym"),
-                      //       ),
-                      //     if (widget.type == "1")
-                      //       InfoChip(
-                      //         icon: Icons.content_cut,
-                      //         label:
-                      //             (estate['HasBarber'] ?? widget.hasBarber) == "1"
-                      //                 ? getTranslated(context, "We have barber")
-                      //                 : getTranslated(
-                      //                     context, "We don't have barber"),
-                      //       ),
-                      //     InfoChip(
-                      //       icon: Icons.smoking_rooms,
-                      //       label: (estate['IsSmokingAllowed'] ??
-                      //                   widget.isSmokingAllowed) ==
-                      //               "1"
-                      //           ? getTranslated(context, "Smoking is allowed")
-                      //           : getTranslated(
-                      //               context, "Smoking is not allowed"),
-                      //     ),
-                      //   ],
-                      // ),
+
+                      // ===== Chips (existing) =====
                       Wrap(
                         spacing: 10.0,
                         runSpacing: 10.0,
@@ -1065,7 +1027,6 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                                 sessionsOptions.cast<Map<String, dynamic>>(),
                               ),
                             ),
-
                           if (widget.type == "1")
                             InfoChip(
                               icon: Icons.grain,
@@ -1162,16 +1123,10 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                           if (estate['HasValet'] == "1" &&
                               estate['ValetWithFees'] == "1")
                             InfoChip(
-                                icon: Icons.money,
-                                label: getTranslated(
-                                    context, "Valet is not free")),
-                          // // if (estate['HasValet'] == "1")
-                          // //   InfoChip(
-                          // //     icon: Icons.money,
-                          // //     label: estate['ValetWithFees'] == "1"
-                          // //         ? getTranslated(context, "Valet is not free")
-                          // //         : getTranslated(context, "Valet is free"),
-                          //   ),
+                              icon: Icons.money,
+                              label:
+                                  getTranslated(context, "Valet is not free"),
+                            ),
                           if (widget.type == "1" &&
                               (estate['HasSwimmingPool'] != null &&
                                   estate['HasSwimmingPool'] != "" &&
@@ -1224,6 +1179,10 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                             ),
                         ],
                       ),
+
+                      // ===== NEW: Metro section =====
+                      if (_hasMetroData(metro)) _buildMetroSection(metro!),
+
                       const SizedBox(height: 16),
                       Visibility(
                         visible: widget.type == "1",
@@ -1257,22 +1216,13 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                               color: Colors.white,
                             );
 
-                            // Use your provider or logic to decide which language to display:
-                            // final displayName = objProvider.CheckLangValue
-                            //     ? room.nameEn
-                            //     : room.name;
                             final displayName = room.name;
-                            // final displayBio = objProvider.CheckLangValue
-                            //     ? room.bioEn
-                            //     : room.bio;
                             final String displayBio = languageCode == 'ar'
                                 ? (room.bio ?? widget.bioAr)
                                 : (room.bioEn ?? widget.bioEn);
 
                             return GestureDetector(
-                              onTap: () {
-                                // ...
-                              },
+                              onTap: () {},
                               child: ListTile(
                                 title: Text(displayName),
                                 subtitle: Text(displayBio),
@@ -1309,7 +1259,7 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                                     const SizedBox(width: 16),
                                 itemBuilder: (context, index) {
                                   final feedback = _feedbackList[index];
-                                  return Container(
+                                  return SizedBox(
                                     width:
                                         MediaQuery.of(context).size.width * 0.8,
                                     child: Card(
@@ -1528,9 +1478,6 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
                             } else if (estate.isEmpty ||
                                 estate['IDUser'] == null ||
                                 estate['NameEn'] == null) {
-                              print('Estate Data: $estate');
-                              print('IDUser: ${estate['IDUser']}');
-                              print('NameEn: ${estate['NameEn']}');
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(getTranslated(context,

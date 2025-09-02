@@ -1,4 +1,3 @@
-// lib/widgets/tool_bar.dart
 import 'package:daimond_host_provider/localization/language_constants.dart';
 import 'package:flutter/material.dart';
 import '../models/furniture_spot.dart';
@@ -147,9 +146,19 @@ class ToolBar extends StatelessWidget {
             isSelected: selectedType == FurnitureType.bar,
             onTap: () => onTypeSelected(FurnitureType.bar),
           ),
+          const SizedBox(width: 12),
 
-          // Only for tables
-          if (selectedType == FurnitureType.table) ...[
+          // NEW: Screen (TV)
+          _toolButton(
+            icon: Icons.tv,
+            label: getTranslated(context, 'screen'),
+            isSelected: selectedType == FurnitureType.screen,
+            onTap: () => onTypeSelected(FurnitureType.screen),
+          ),
+
+          // Capacity & shape only for Table/Bar
+          if (selectedType == FurnitureType.table ||
+              selectedType == FurnitureType.bar) ...[
             const SizedBox(width: 12),
             PopupMenuButton<int>(
               icon: const Icon(Icons.format_list_numbered),
@@ -172,6 +181,9 @@ class ToolBar extends StatelessWidget {
                     break;
                   case TableShape.square:
                     icon = Icons.crop_square;
+                    break;
+                  case TableShape.oval:
+                    icon = Icons.egg_alt;
                     break;
                   case TableShape.rectangle:
                   default:
@@ -247,5 +259,5 @@ class ToolBar extends StatelessWidget {
 }
 
 extension _Cap on String {
-  String capitalize() => this[0].toUpperCase() + substring(1);
+  String capitalize() => isEmpty ? this : this[0].toUpperCase() + substring(1);
 }

@@ -30,7 +30,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "com.example.daimond_host_provider"
-    compileSdk 34 // Update if necessary
+    compileSdk 35 // Update if necessary
     ndkVersion "21.1.6352462" // Replace if you need a different NDK version
 
     compileOptions {

@@ -25,61 +25,107 @@ class AddEstateServices {
     }
   }
 
+  /// Writes full layout info:
+  /// - size
+  /// - includeOutdoor + outdoorSides
+  /// - includeSecondFloor + secondFloorSides
+  /// - spots_indoor, spots_outdoor, spots_second
+  /// Also sets estate.LayoutId
   Future<void> uploadAutoCadLayout({
     required String childType,
     required String estateId,
     required AutoCadLayout layout,
   }) async {
-    final ref = FirebaseDatabase.instance
-        .ref("App")
-        .child("Estate")
-        .child(childType)
-        .child(estateId)
-        .child("AutoCad")
-        .child(layout.layoutId);
+    final layoutRef = FirebaseDatabase.instance
+        .ref("App/Estate/$childType/$estateId/AutoCad/${layout.layoutId}");
 
-    // write room size
-    await ref.child('size').set({
-      'width': layout.width,
-      'height': layout.height,
-      'timestamp': ServerValue.timestamp,
+    await layoutRef.update({
+      'includeOutdoor': layout.includeOutdoor,
+      'outdoorSides': layout.outdoorSides.map((s) => s.name).toList(),
+      'includeSecondFloor': layout.includeSecondFloor,
+      'secondFloorSides': layout.secondFloorSides.map((s) => s.name).toList(),
+      'size': {
+        'width': layout.width,
+        'height': layout.height,
+        'timestamp': ServerValue.timestamp,
+      },
     });
 
-    final spotsRef = ref.child('spots');
-    for (final spot in layout.spots) {
-      await spotsRef.child(spot.id).set({
+    // Indoor
+    final indoorRef = layoutRef.child('spots_indoor');
+    await indoorRef.remove();
+    for (final spot in layout.spotsIndoor) {
+      await indoorRef.child(spot.id).set({
         'type': spot.type.name,
         'shape': spot.shape.name,
         'capacity': spot.capacity,
         'seatType': spot.seatType.name,
-        'decoration': spot.decorationType?.name,
+        'decorationType': spot.decorationType?.name,
         'x': spot.x,
         'y': spot.y,
         'w': spot.w,
         'h': spot.h,
+        'rotation': spot.rotation,
         'color': spot.color.value,
         'timestamp': ServerValue.timestamp,
       });
     }
+
+    // Outdoor
+    final outdoorRef = layoutRef.child('spots_outdoor');
+    await outdoorRef.remove();
+    for (final spot in layout.spotsOutdoor) {
+      await outdoorRef.child(spot.id).set({
+        'type': spot.type.name,
+        'shape': spot.shape.name,
+        'capacity': spot.capacity,
+        'seatType': spot.seatType.name,
+        'decorationType': spot.decorationType?.name,
+        'x': spot.x,
+        'y': spot.y,
+        'w': spot.w,
+        'h': spot.h,
+        'rotation': spot.rotation,
+        'color': spot.color.value,
+        'timestamp': ServerValue.timestamp,
+      });
+    }
+
+    // Second floor
+    final secondRef = layoutRef.child('spots_second');
+    await secondRef.remove();
+    for (final spot in layout.spotsSecond) {
+      await secondRef.child(spot.id).set({
+        'type': spot.type.name,
+        'shape': spot.shape.name,
+        'capacity': spot.capacity,
+        'seatType': spot.seatType.name,
+        'decorationType': spot.decorationType?.name,
+        'x': spot.x,
+        'y': spot.y,
+        'w': spot.w,
+        'h': spot.h,
+        'rotation': spot.rotation,
+        'color': spot.color.value,
+        'timestamp': ServerValue.timestamp,
+      });
+    }
+
+    // Point estate to this layout
+    await FirebaseDatabase.instance
+        .ref("App/Estate/$childType/$estateId")
+        .update({'LayoutId': layout.layoutId});
   }
 
   // Modified Method: Now accepts String path instead of XFile
   Future<String?> uploadFacilityPdfToStorage(
       String pdfPath, String idEstate) async {
     try {
-      // Create a reference to the location you want to upload to in Firebase Storage
       Reference storageRef =
           storage.ref().child("estates/$idEstate/facility_document.pdf");
-
-      // Upload the file
       UploadTask uploadTask = storageRef.putFile(File(pdfPath));
-
-      // Wait for the upload to complete
       TaskSnapshot snapshot = await uploadTask;
-
-      // Get the download URL
       String downloadUrl = await snapshot.ref.getDownloadURL();
-
       return downloadUrl;
     } catch (e) {
       print("Error uploading PDF: $e");
@@ -89,19 +135,11 @@ class AddEstateServices {
 
   Future<String?> uploadTaxPdfToStorage(String pdfPath, String idEstate) async {
     try {
-      // Create a reference to the location you want to upload to in Firebase Storage
       Reference storageRef =
           storage.ref().child("estates/$idEstate/tax_document.pdf");
-
-      // Upload the file
       UploadTask uploadTask = storageRef.putFile(File(pdfPath));
-
-      // Wait for the upload to complete
       TaskSnapshot snapshot = await uploadTask;
-
-      // Get the download URL
       String downloadUrl = await snapshot.ref.getDownloadURL();
-
       return downloadUrl;
     } catch (e) {
       print("Error uploading PDF: $e");
@@ -114,7 +152,7 @@ class AddEstateServices {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf'], // Limit to PDFs
+        allowedExtensions: ['pdf'],
       );
       return result;
     } catch (e) {
@@ -188,12 +226,39 @@ class AddEstateServices {
     required bool isThereLaunchLounge,
     String? facilityImageUrl,
     String? taxImageUrl,
-    String? layoutId, // Consider renaming to facilityPdfUrl
+    String? layoutId,
     required bool hasJacuzzi,
     required String estatePhoneNumber,
+
+    // ===== NEW (Photographer) =====
+    String? dateOfPhotography,
+    String? dayOfPhotography,
+    String? timeOfPhotography,
+
+    // ===== NEW (Metro) =====
+    required String metroCity, // "Riyadh" or empty
+    required List<String> metroLines, // selected line color names
+    required Map<String, List<String>> metroStationsByLine, // line -> stations
   }) async {
     String registrationDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
-    await ref.child(childType).child(idEstate).set({
+
+    // Metro payload
+    Map<String, dynamic>? metroNode;
+    if (metroCity.trim().toLowerCase() == 'riyadh' && metroLines.isNotEmpty) {
+      final Map<String, dynamic> linesNode = {};
+      for (final line in metroLines) {
+        final stations = metroStationsByLine[line] ?? const <String>[];
+        linesNode[line] = {
+          'Stations': stations.join(','), // stored as comma-separated EN names
+        };
+      }
+      metroNode = {
+        'City': 'Riyadh',
+        'Lines': linesNode,
+      };
+    }
+
+    final Map<String, dynamic> base = {
       "NameAr": nameAr,
       "NameEn": nameEn,
       "Owner of Estate Name": "$ownerFirstName $ownerLastName",
@@ -213,7 +278,6 @@ class AddEstateServices {
       "IDEstate": idEstate,
       "TypeAccount": typeAccount,
       "DateOfRegisteredEstate": registrationDate,
-      // "TaxNumber": taxNumber, // Corrected typo from "TaxNumer"
       "Music": music,
       if (userType == "3") "TypeofRestaurant": listTypeOfRestaurant.join(","),
       if (userType == "2" || userType == "3")
@@ -238,12 +302,31 @@ class AddEstateServices {
       "IsThereLaunchLounge": isThereLaunchLounge ? "1" : "0",
       "IsThereDinnerLounge": isThereDinnerLounge ? "1" : "0",
       "FacilityPdfUrl": facilityImageUrl ?? "",
-      "TaxPdfUrl": taxImageUrl ?? "", // Renamed for clarity
+      "TaxPdfUrl": taxImageUrl ?? "",
       "IsAccepted": "1",
       "IsCompleted": "0",
-      if (layoutId != null)
-        "LayoutId": layoutId, // Mark as incomplete initially
-    });
+      if (layoutId != null) "LayoutId": layoutId,
+    };
+
+    // NEW (Photographer) — nested node if any of the three fields is provided
+    if ((dateOfPhotography != null && dateOfPhotography.isNotEmpty) ||
+        (dayOfPhotography != null && dayOfPhotography.isNotEmpty) ||
+        (timeOfPhotography != null && timeOfPhotography.isNotEmpty)) {
+      base["Photography"] = {
+        if (dateOfPhotography != null && dateOfPhotography.isNotEmpty)
+          "DateOfPhotography": dateOfPhotography, // e.g., 2025-08-31
+        if (dayOfPhotography != null && dayOfPhotography.isNotEmpty)
+          "DayOfPhotography": dayOfPhotography, // e.g., Sunday
+        if (timeOfPhotography != null && timeOfPhotography.isNotEmpty)
+          "TimeOfPhotography": timeOfPhotography, // e.g., 17:00
+      };
+    }
+
+    if (metroNode != null) {
+      base["Metro"] = metroNode;
+    }
+
+    await ref.child(childType).child(idEstate).set(base);
   }
 
   Future<void> rejectEstate(String childType, String estateId) async {
@@ -274,14 +357,6 @@ class AddEstateServices {
     required String roomBioAr,
     required String roomBioEn,
   }) async {
-    // Reference to save the room data inside the App>Rooms path (external)
-    // DatabaseReference refRooms = FirebaseDatabase.instance
-    //     .ref("App")
-    //     .child("Rooms")
-    //     .child(estateId)
-    //     .child(roomName);
-
-    // Reference to save the room data inside the App>Estate>Hottel>EstateID>Rooms (internal)
     DatabaseReference refHotelRooms = FirebaseDatabase.instance
         .ref("App")
         .child("Estate")
@@ -289,15 +364,6 @@ class AddEstateServices {
         .child(estateId)
         .child("Rooms")
         .child(roomName);
-
-    // Save the room data in both locations
-    // await refRooms.set({
-    //   "ID": roomId,
-    //   "Name": roomName,
-    //   "Price": roomPrice,
-    //   "BioAr": roomBioAr,
-    //   "BioEn": roomBioEn,
-    // });
 
     await refHotelRooms.set({
       "ID": roomId,
@@ -307,29 +373,6 @@ class AddEstateServices {
       "BioEn": roomBioEn,
     });
   }
-
-  // Future<void> addRoom({
-  //   required String estateId,
-  //   required String roomId,
-  //   required String roomName,
-  //   required String roomPrice,
-  //   required String roomBioAr,
-  //   required String roomBioEn,
-  // }) async {
-  //   DatabaseReference refRooms = FirebaseDatabase.instance
-  //       .ref("App")
-  //       .child("Rooms")
-  //       .child(estateId)
-  //       .child(roomName);
-  //
-  //   await refRooms.set({
-  //     "ID": roomId,
-  //     "Name": roomName,
-  //     "Price": roomPrice,
-  //     "BioAr": roomBioAr,
-  //     "BioEn": roomBioEn,
-  //   });
-  // }
 
   Future<void> updateEstateId(int newIdEstate) async {
     await refID.update({"EstateID": newIdEstate});
@@ -349,7 +392,6 @@ class AddEstateServices {
     };
   }
 
-  // New method to mark estate as completed
   Future<void> markEstateAsCompleted(String type, String idEstate) async {
     await ref.child(type).child(idEstate).update({"IsCompleted": "1"});
   }
