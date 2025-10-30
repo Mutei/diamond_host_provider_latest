@@ -7,6 +7,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/colors.dart';
 import '../localization/language_constants.dart';
+import '../services/local_notifications.dart';
 import '../widgets/birthday_textform_field.dart';
 import '../widgets/choose_city.dart';
 import '../widgets/reused_elevated_button.dart';
@@ -87,6 +88,13 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
     super.dispose();
   }
 
+  String _trWithPlaceholders(
+      BuildContext context, String key, Map<String, String> ph) {
+    String s = getTranslated(context, key);
+    ph.forEach((k, v) => s = s.replaceAll(k, v));
+    return s;
+  }
+
   void _saveUserInfo() async {
     if (_firstNameController.text.isEmpty ||
         _secondNameController.text.isEmpty ||
@@ -100,61 +108,71 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
       return;
     }
 
-    User? user = _auth.currentUser;
-    if (user != null) {
-      String userId = user.uid;
+    final user = _auth.currentUser;
+    if (user == null) return;
 
-      // Fetch existing data to retain values like 'AcceptedTermsAndConditions'
-      DatabaseReference ref =
-          FirebaseDatabase.instance.ref("App").child("User").child(userId);
-      DataSnapshot snapshot = await ref.get();
+    final String userId = user.uid;
 
-      Map<String, dynamic> existingData = {};
+    // Fetch existing data so we don't wipe fields we didn’t edit
+    final ref =
+        FirebaseDatabase.instance.ref("App").child("User").child(userId);
+    final snapshot = await ref.get();
 
-      // Check if snapshot exists and is in the correct map format
-      if (snapshot.exists && snapshot.value != null) {
-        existingData = Map<String, dynamic>.from(
-            snapshot.value as Map); // Cast to Map<String, dynamic>
-      }
-
-      // Prepare the new data (only the fields that we want to update)
-      final Map<String, String?> updatedUserData = {
-        if (_firstNameController.text != existingData['FirstName'])
-          'FirstName': _firstNameController.text,
-        if (_secondNameController.text != existingData['SecondName'])
-          'SecondName': _secondNameController.text,
-        if (_lastNameController.text != existingData['LastName'])
-          'LastName': _lastNameController.text,
-        // if (_bodController.text != existingData['DateOfBirth'])
-        //   'DateOfBirth': _bodController.text,
-        if (cityValue != existingData['City']) 'City': cityValue,
-        if (stateValue != existingData['State']) 'State': stateValue,
-        if (countryValue != existingData['Country']) 'Country': countryValue,
-        'Email': widget.email, // Keep the same
-        'PhoneNumber': widget.phoneNumber, // Keep the same
-        'Password': widget.password, // Keep the same
-        'TypeUser': '2', // Keep the same
-        'TypeAccount': widget.typeAccount, // Keep the same
-        'userId': userId, // Keep the same
-        'DateOfRegistration': existingData['DateOfRegistration'] ??
-            DateFormat('dd/MM/yyyy').format(DateTime.now()),
-        'AcceptedTermsAndConditions': 'true',
-      };
-
-      // Use the update method to only change the specified fields
-      await ref.update(updatedUserData);
-
-      // Save the login status
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setString("TypeUser", widget.typeUser);
-      await prefs.setBool('isLoggedIn', true);
-
-      // Navigate to the MainScreen
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const MainScreen()),
-        (Route<dynamic> route) => false,
-      );
+    Map<String, dynamic> existingData = {};
+    if (snapshot.exists && snapshot.value != null) {
+      existingData = Map<String, dynamic>.from(snapshot.value as Map);
     }
+
+    final Map<String, String?> updatedUserData = {
+      if (_firstNameController.text != existingData['FirstName'])
+        'FirstName': _firstNameController.text,
+      if (_secondNameController.text != existingData['SecondName'])
+        'SecondName': _secondNameController.text,
+      if (_lastNameController.text != existingData['LastName'])
+        'LastName': _lastNameController.text,
+      if (cityValue != existingData['City']) 'City': cityValue,
+      if (stateValue != existingData['State']) 'State': stateValue,
+      if (countryValue != existingData['Country']) 'Country': countryValue,
+      'Email': widget.email,
+      'PhoneNumber': widget.phoneNumber,
+      'Password': widget.password,
+      'TypeUser': widget.typeUser, // keep same as passed
+      'TypeAccount': widget.typeAccount, // keep same as passed
+      'userId': userId,
+      'DateOfRegistration': existingData['DateOfRegistration'] ??
+          DateFormat('dd/MM/yyyy').format(DateTime.now()),
+      'AcceptedTermsAndConditions': 'true',
+    };
+
+    await ref.update(updatedUserData);
+
+    // ==== NEW: Welcome local notification (ONLY for real "users")
+    // If your app defines TypeUser: '1' = Customer/User, '2' = Provider,
+    // keep this guard to notify only customers:
+    // PersonalInfoScreen::_saveUserInfo()
+// Send welcome notification ONLY for providers
+    if (widget.typeUser == '2') {
+      final first = _firstNameController.text.trim();
+      final last = _lastNameController.text.trim();
+      final full = [first, last].where((s) => s.isNotEmpty).join(' ');
+      final String title =
+          _trWithPlaceholders(context, 'WelcomeName', {'{name}': full});
+      final String body = getTranslated(context, 'WelcomeBody');
+
+      await AppLocalNotifications.showWelcome(title: title, body: body);
+    }
+
+    // Save login status
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString("TypeUser", widget.typeUser);
+    await prefs.setBool('isLoggedIn', true);
+
+    // Navigate to MainScreen
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const MainScreen()),
+      (Route<dynamic> route) => false,
+    );
   }
 
   static Route<DateTime> _datePickerRoute(

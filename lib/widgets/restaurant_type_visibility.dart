@@ -335,6 +335,7 @@
 // }
 //
 
+import 'package:daimond_host_provider/widgets/birthday_textform_field.dart';
 import 'package:flutter/material.dart';
 import '../localization/language_constants.dart';
 
@@ -358,6 +359,11 @@ class RestaurantTypeVisibility extends StatefulWidget {
 class _RestaurantTypeVisibilityState extends State<RestaurantTypeVisibility> {
   final List<Map<String, dynamic>> restaurantOptions = [
     {'label': 'Popular restaurant', 'labelAr': 'مطعم شعبي', 'value': false},
+    {
+      'label': 'International Restaurant',
+      'labelAr': 'مطعم عالمي',
+      'value': false
+    },
     {'label': 'Indian Restaurant', 'labelAr': 'مطعم هندي', 'value': false},
     {'label': 'Italian', 'labelAr': 'إيطالي', 'value': false},
     {
@@ -571,6 +577,7 @@ class _RestaurantTypeVisibilityState extends State<RestaurantTypeVisibility> {
 
   @override
   Widget build(BuildContext context) {
+    final textDirection = Directionality.of(context);
     if (!widget.isVisible) return Container();
 
     List<Map<String, dynamic>> filteredOptions =
@@ -580,72 +587,72 @@ class _RestaurantTypeVisibilityState extends State<RestaurantTypeVisibility> {
       return labelEn.contains(searchText) || labelAr.contains(searchText);
     }).toList();
 
-    return Column(
-      children: [
-        TextField(
-          controller: searchController,
-          decoration: InputDecoration(
-            labelText: getTranslated(context, "Search for a cuisine"),
-            prefixIcon: const Icon(Icons.search),
-            suffixIcon: searchText.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      searchController.clear();
-                    },
-                  )
-                : null,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            filled: true,
-            fillColor: Theme.of(context).brightness == Brightness.dark
-                ? Colors.black
-                : Colors.white,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Column(
-          children: [
-            ...filteredOptions.take(visibleCount).map((option) {
-              bool isChecked =
-                  widget.selectedRestaurantTypes.contains(option['label']);
-              return _buildCheckboxRow(
-                context,
-                option['label'],
-                option['labelAr'],
-                isChecked,
-                (value) {
-                  widget.onCheckboxChanged(value, option['label']);
-                },
-              );
-            }).toList(),
-            if (visibleCount < filteredOptions.length)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        visibleCount += 3; // Increase by 3 for "Show more"
-                      });
-                    },
-                    child: Text(getTranslated(context, "Show more")),
-                  ),
-                  if (visibleCount > 3)
+    return Container(
+      // margin: EdgeInsets.only(
+      //   left: 20,
+      // ),
+      // padding: EdgeInsets.only(
+      //   left: 20,
+      // ),
+      margin: textDirection == TextDirection.rtl
+          ? EdgeInsets.only(left: 20)
+          : EdgeInsets.only(right: 0),
+      padding: textDirection == TextDirection.rtl
+          ? EdgeInsets.only(left: 20)
+          : EdgeInsets.only(right: 0),
+
+      child: Column(
+        children: [
+          TextFormFieldStyle(
+              context: context,
+              hint: "Search for a cuisine",
+              control: searchController,
+              isObsecured: false,
+              validate: true,
+              textInputType: TextInputType.text),
+          const SizedBox(height: 10),
+          Column(
+            children: [
+              ...filteredOptions.take(visibleCount).map((option) {
+                bool isChecked =
+                    widget.selectedRestaurantTypes.contains(option['label']);
+                return _buildCheckboxRow(
+                  context,
+                  option['label'],
+                  option['labelAr'],
+                  isChecked,
+                  (value) {
+                    widget.onCheckboxChanged(value, option['label']);
+                  },
+                );
+              }).toList(),
+              if (visibleCount < filteredOptions.length)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                     TextButton(
                       onPressed: () {
                         setState(() {
-                          visibleCount -= 3; // Decrease by 3 for "Show less"
+                          visibleCount += 3; // Increase by 3 for "Show more"
                         });
                       },
-                      child: Text(getTranslated(context, "Show less")),
+                      child: Text(getTranslated(context, "Show more")),
                     ),
-                ],
-              ),
-          ],
-        ),
-      ],
+                    if (visibleCount > 3)
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            visibleCount -= 3; // Decrease by 3 for "Show less"
+                          });
+                        },
+                        child: Text(getTranslated(context, "Show less")),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

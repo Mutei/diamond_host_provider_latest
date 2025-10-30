@@ -1,3 +1,4 @@
+// add_post_screen.dart
 import 'dart:io';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:reorderables/reorderables.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../constants/colors.dart';
 import '../constants/styles.dart';
@@ -41,10 +43,15 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
   final ImagePicker _picker = ImagePicker();
 
-  String? _selectedEstate;
+  String? _selectedEstate; // estate key (id under App/Estate/<Type>/<id>)
   List<Map<dynamic, dynamic>> _userEstates = [];
   String userType = "2";
   String? typeAccount;
+
+  // Scope: if this device is restricted to a single estate, enforce it here
+  String?
+      _scopedEstateId; // the IDEstate (not the node key) we’re allowed to post for
+  bool _lockToScopedEstate = false;
 
   bool _isLoading = false;
   double _uploadProgress = 0.0;
@@ -69,6 +76,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
   Future<void> _initializeData() async {
     await Future.wait([
+      _loadDeviceScope(),
       _fetchUserEstates(),
       _loadUserType(),
       _loadTypeAccount(),
@@ -90,33 +98,78 @@ class _AddPostScreenState extends State<AddPostScreen> {
     if (snap.exists) setState(() => typeAccount = snap.value.toString());
   }
 
+  /// Read device scope from App/User/<uid>/Tokens/<token>/scope
+  /// If scope.type == 'estate', only allow posting for that single estate.
+  Future<void> _loadDeviceScope() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final token = await FirebaseMessaging.instance.getToken();
+      if (uid == null || token == null) return;
+
+      final scopeRef =
+          FirebaseDatabase.instance.ref('App/User/$uid/Tokens/$token/scope');
+      final snap = await scopeRef.get();
+      if (snap.exists) {
+        final type = snap.child('type').value?.toString();
+        final estId = snap.child('estateId').value?.toString();
+        if (type == 'estate' && estId != null && estId.isNotEmpty) {
+          _scopedEstateId = estId; // this is IDEstate
+          _lockToScopedEstate = true;
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// Fetch accepted estates owned by the user.
+  /// If device is estate-scoped, include **only that estate**.
   Future<void> _fetchUserEstates() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     final snap = await FirebaseDatabase.instance.ref('App/Estate').once();
     final data = snap.snapshot.value as Map<dynamic, dynamic>?;
     if (data == null) return;
+
     final estates = <Map<dynamic, dynamic>>[];
     data.forEach((estateType, estatesMap) {
       if (estatesMap is Map) {
-        estatesMap.forEach((key, value) {
+        estatesMap.forEach((nodeKey, value) {
           if (value != null &&
               value['IDUser'] == user.uid &&
               value['IsAccepted'] == "2") {
+            // IDEstate stored in booking/posts; nodeKey is the DB key under /Estate/<type>/
+            final ide = value['IDEstate']?.toString();
+            // If scoped to a single estate, keep only that IDEstate
+            if (_scopedEstateId != null && ide != _scopedEstateId) return;
+
             estates.add({
-              'type': estateType,
-              'data': value,
-              'id': key,
-              'IDEstate': value['IDEstate'],
+              'type': estateType, // Coffee / Hottel / Restaurant
+              'data': value, // full estate map
+              'id': nodeKey, // node key under Estate/<type>/
+              'IDEstate': ide, // the public IDEstate used across app
+              'NameEn': value['NameEn']?.toString() ?? '',
             });
           }
         });
       }
     });
+
+    // If device is scoped but we didn’t find that estate (e.g., not accepted),
+    // keep list empty so user can’t post.
     setState(() {
       _userEstates = estates;
-      if (widget.post == null && userType == '2' && estates.isNotEmpty) {
-        _selectedEstate = estates.first['id'];
+
+      // If editing an existing post, don't override selection.
+      if (widget.post == null) {
+        if (_lockToScopedEstate && _scopedEstateId != null) {
+          // find the entry matching IDEstate == scoped id
+          final found = estates.firstWhere(
+            (e) => e['IDEstate'] == _scopedEstateId,
+            orElse: () => {},
+          );
+          _selectedEstate = found.isNotEmpty ? found['id'] as String : null;
+        } else if (userType == '2' && estates.isNotEmpty) {
+          _selectedEstate = estates.first['id'];
+        }
       }
     });
   }
@@ -190,7 +243,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
   }
 
   Future<void> _savePost() async {
-    // 1️⃣ Super-user restriction
+    // 1) Super-user restriction (kept as in your original)
     if (typeAccount == "1" && _superUserId != 'NUiwMiP03lWcPZSYAUidWnNRkRz2') {
       showDialog(
         context: context,
@@ -202,9 +255,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
       return;
     }
 
-    // 2️⃣ Form validation + estate selection
+    // 2) Validate form + estate selection
     if (!_formKey.currentState!.validate() ||
-        (_selectedEstate == null && userType != "1")) {
+        (userType != "1" && _selectedEstate == null)) {
       return;
     }
 
@@ -212,7 +265,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
     if (user == null) {
       showDialog(
         context: context,
-        builder: (_) => FailureDialog(
+        builder: (_) => const FailureDialog(
           text: "Error",
           text1: "User not authenticated",
         ),
@@ -222,7 +275,28 @@ class _AddPostScreenState extends State<AddPostScreen> {
     final userId = user.uid;
     final isSuperUser = userId == _superUserId;
 
-    // 3️⃣ Post-limit check for non-super-users
+    // 3) Enforce device scope: if scoped to estate X, only allow posting for that estate
+    if (_lockToScopedEstate && _scopedEstateId != null) {
+      final selected = _userEstates.firstWhere(
+        (e) => e['id'] == _selectedEstate,
+        orElse: () => {},
+      );
+      final selectedIDEstate =
+          selected.isNotEmpty ? selected['IDEstate'] : null;
+      if (selectedIDEstate != _scopedEstateId) {
+        showDialog(
+          context: context,
+          builder: (_) => const FailureDialog(
+            text: "Not allowed",
+            text1:
+                "This device is restricted to a specific estate. Please post only for that estate.",
+          ),
+        );
+        return;
+      }
+    }
+
+    // 4) Post-limit check for non-super-users
     if (!isSuperUser && !await _canAddMorePosts()) {
       return;
     }
@@ -233,7 +307,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
     });
 
     try {
-      // 4️⃣ Fetch user profile image URL
+      // 5) Fetch user profile image URL
       String? profileImageUrl;
       final userSnap =
           await FirebaseDatabase.instance.ref("App/User/$userId").get();
@@ -242,7 +316,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         profileImageUrl = userData['ProfileImageUrl'] as String?;
       }
 
-      // 5️⃣ Find selected estate data (if provider)
+      // 6) Find selected estate data (if provider)
       Map<dynamic, dynamic>? selectedEstateData;
       if (_selectedEstate != null) {
         selectedEstateData = _userEstates.firstWhere(
@@ -252,7 +326,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         if (selectedEstateData.isEmpty) {
           showDialog(
             context: context,
-            builder: (_) => FailureDialog(
+            builder: (_) => const FailureDialog(
               text: "Error",
               text1: "You don't have this estate",
             ),
@@ -261,20 +335,20 @@ class _AddPostScreenState extends State<AddPostScreen> {
         }
       }
 
-      // 6️⃣ Prepare database reference & new post ID
+      // 7) Prepare database reference & new post ID
       final postsRef = FirebaseDatabase.instance.ref("App/AllPosts");
       if (_postId.isEmpty) {
         _postId = postsRef.push().key!;
       }
 
-      // 7️⃣ Compute total bytes of all files
+      // 8) Compute total bytes for progress
       int totalBytes = 0;
       for (final f in [..._imageFiles, ..._videoFiles]) {
         totalBytes += await f.length();
       }
       int cumulativeTransferred = 0;
 
-      // 8️⃣ Upload images with aggregated progress
+      // 9) Upload images with aggregated progress
       final List<String> imageUrls = [];
       for (final img in _imageFiles) {
         final fileBytes = await img.length();
@@ -287,7 +361,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
         final subscription = uploadTask.snapshotEvents.listen((snap) {
           final current = snap.bytesTransferred;
           setState(() {
-            _uploadProgress = (cumulativeTransferred + current) / totalBytes;
+            _uploadProgress = totalBytes == 0
+                ? 0
+                : (cumulativeTransferred + current) / totalBytes;
           });
         });
 
@@ -298,7 +374,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         imageUrls.add(await storageRef.getDownloadURL());
       }
 
-      // 9️⃣ Upload videos with aggregated progress
+      // 10) Upload videos with aggregated progress
       final List<String> videoUrls = [];
       for (final vid in _videoFiles) {
         final fileBytes = await vid.length();
@@ -311,7 +387,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
         final subscription = uploadTask.snapshotEvents.listen((snap) {
           final current = snap.bytesTransferred;
           setState(() {
-            _uploadProgress = (cumulativeTransferred + current) / totalBytes;
+            _uploadProgress = totalBytes == 0
+                ? 0
+                : (cumulativeTransferred + current) / totalBytes;
           });
         });
 
@@ -322,7 +400,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         videoUrls.add(await storageRef.getDownloadURL());
       }
 
-      // 🔟 Determine display name
+      // 11) Determine display name
       String estateName;
       if (userType == "2" &&
           selectedEstateData != null &&
@@ -337,14 +415,14 @@ class _AddPostScreenState extends State<AddPostScreen> {
         estateName = 'Unknown User';
       }
 
-      // ⓫ Write post to Realtime Database
+      // 12) Write post to Realtime Database
       await postsRef.child(_postId).set({
         'Description': _titleController.text.trim(),
         'Text': _textController.text.trim(),
         'Date': DateTime.now().millisecondsSinceEpoch,
         'Username': estateName,
         'EstateType': selectedEstateData?['type'],
-        'EstateID': selectedEstateData?['data']?['IDEstate'],
+        'EstateID': selectedEstateData?['IDEstate'], // IDEstate (public id)
         'userId': userId,
         'userType': userType,
         'typeAccount': typeAccount,
@@ -356,7 +434,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         'Status': isSuperUser ? '1' : '0',
       });
 
-      // Show appropriate dialog
+      // 13) Dialogs
       await showDialog(
         context: context,
         builder: (_) => isSuperUser
@@ -387,161 +465,48 @@ class _AddPostScreenState extends State<AddPostScreen> {
     }
   }
 
-  // Future<void> _savePost() async {
-  //   if (typeAccount == "1" && _superUserId != 'NUiwMiP03lWcPZSYAUidWnNRkRz2') {
-  //     showDialog(
-  //       context: context,
-  //       builder: (_) => FailureDialog(
-  //         text: "Restricted",
-  //         text1: "Your account type does not allow adding posts.",
-  //       ),
-  //     );
-  //     return;
-  //   }
-  //   if (!_formKey.currentState!.validate() ||
-  //       (_selectedEstate == null && userType != "1")) {
-  //     return;
-  //   }
-  //   final user = FirebaseAuth.instance.currentUser;
-  //   if (user == null) {
-  //     showDialog(
-  //       context: context,
-  //       builder: (_) => FailureDialog(
-  //         text: "Error",
-  //         text1: "User not authenticated",
-  //       ),
-  //     );
-  //     return;
-  //   }
-  //   final userId = user.uid;
-  //   final isSuperUser = userId == _superUserId;
-  //   if (!isSuperUser && !await _canAddMorePosts()) {
-  //     return;
-  //   }
-  //   setState(() => _isLoading = true);
-  //   try {
-  //     String? profileImageUrl;
-  //     final userSnap = await FirebaseDatabase.instance
-  //         .ref("App")
-  //         .child("User")
-  //         .child(userId)
-  //         .get();
-  //     if (userSnap.exists) {
-  //       final userData = userSnap.value as Map<dynamic, dynamic>;
-  //       profileImageUrl = userData['ProfileImageUrl'];
-  //     }
-  //     final selectedEstate = _selectedEstate != null
-  //         ? _userEstates.firstWhere(
-  //           (e) => e['id'] == _selectedEstate,
-  //       orElse: () => {},
-  //     )
-  //         : {};
-  //     if (_selectedEstate != null && selectedEstate.isEmpty) {
-  //       showDialog(
-  //         context: context,
-  //         builder: (_) => FailureDialog(
-  //           text: "Error",
-  //           text1: "You don't have this estate",
-  //         ),
-  //       );
-  //       return;
-  //     }
-  //     final postsRef = FirebaseDatabase.instance.ref("App").child("AllPosts");
-  //     if (_postId.isEmpty) {
-  //       _postId = postsRef.push().key!;
-  //     }
-  //     List<String> imageUrls = [];
-  //     for (final img in _imageFiles) {
-  //       final upload = FirebaseStorage.instance
-  //           .ref()
-  //           .child('post_images')
-  //           .child('$_postId${img.path.split('/').last}')
-  //           .putFile(img);
-  //       final snap = await upload;
-  //       imageUrls.add(await snap.ref.getDownloadURL());
-  //     }
-  //     List<String> videoUrls = [];
-  //     for (final vid in _videoFiles) {
-  //       final upload = FirebaseStorage.instance
-  //           .ref()
-  //           .child('post_videos')
-  //           .child('$_postId${vid.path.split('/').last}')
-  //           .putFile(vid);
-  //       final snap = await upload;
-  //       videoUrls.add(await snap.ref.getDownloadURL());
-  //     }
-  //     String estateName;
-  //     if (userType == "2" && selectedEstate.isNotEmpty) {
-  //       estateName = selectedEstate['data']['NameEn'];
-  //     } else if (userSnap.exists) {
-  //       final u = userSnap.value as Map<dynamic, dynamic>;
-  //       estateName = '${u['FirstName']} ${u['SecondName']} ${u['LastName']}';
-  //     } else {
-  //       estateName = 'Unknown User';
-  //     }
-  //     await postsRef.child(_postId).set({
-  //       'Description': _titleController.text,
-  //       'Date': DateTime.now().millisecondsSinceEpoch,
-  //       'Username': estateName,
-  //       'EstateType': selectedEstate['type'],
-  //       'userId': userId,
-  //       'userType': userType,
-  //       'typeAccount': typeAccount,
-  //       'ImageUrls': imageUrls,
-  //       'VideoUrls': videoUrls,
-  //       'ProfileImageUrl': profileImageUrl,
-  //       'likes': {'count': 0, 'users': {}},
-  //       'comments': {'count': 0, 'list': {}},
-  //       'Status': isSuperUser ? '1' : '0',
-  //     });
-  //     await showDialog(
-  //       context: context,
-  //       builder: (_) => isSuperUser
-  //           ? const SuccessDialog(
-  //         text: "Success",
-  //         text1: "Your post has been approved and is now visible.",
-  //       )
-  //           : const UnderProcessDialog(
-  //         text: "Under Process",
-  //         text1: "Your post is under process for review",
-  //       ),
-  //     );
-  //     Navigator.of(context).pop();
-  //   } catch (e) {
-  //     await showDialog(
-  //       context: context,
-  //       builder: (_) => const FailureDialog(
-  //         text: "Error",
-  //         text1: "Failed to add post",
-  //       ),
-  //     );
-  //   } finally {
-  //     setState(() => _isLoading = false);
-  //   }
-  // }
-
   Widget _buildEstateDropdown(bool isDark) {
-    return DropdownButtonFormField<String>(
-      value: _selectedEstate,
-      isExpanded: true,
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: isDark ? kDarkModeColor : Colors.grey[200],
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      hint: Text(getTranslated(context, 'Select Estate')),
-      items: _userEstates.map((e) {
-        return DropdownMenuItem<String>(
-          value: e['id'],
-          child: Text('${e['data']['NameEn']} (${e['type']})',
-              overflow: TextOverflow.ellipsis),
-        );
-      }).toList(),
-      onChanged: (v) => setState(() => _selectedEstate = v),
-      validator: (v) {
-        if (userType == '2' && v == null) return 'Please select an estate';
-        return null;
-      },
+    // If the device is locked to one estate, disable changing it
+    final isDisabled = _lockToScopedEstate;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          value: _selectedEstate,
+          isExpanded: true,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: isDark ? kDarkModeColor : Colors.grey[200],
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          hint: Text(getTranslated(context, 'Select Estate')),
+          items: _userEstates.map((e) {
+            final name = (e['NameEn'] as String?) ?? '';
+            final type = (e['type'] as String?) ?? '';
+            return DropdownMenuItem<String>(
+              value: e['id'],
+              child: Text('$name ($type)', overflow: TextOverflow.ellipsis),
+            );
+          }).toList(),
+          onChanged:
+              isDisabled ? null : (v) => setState(() => _selectedEstate = v),
+          validator: (v) {
+            if (userType == '2' && v == null) {
+              return getTranslated(context, 'Please select an estate');
+            }
+            return null;
+          },
+        ),
+        if (_lockToScopedEstate)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              getTranslated(context, 'Add post for your estate'),
+              style: const TextStyle(fontSize: 12, color: Colors.orange),
+            ),
+          ),
+      ],
     );
   }
 
@@ -738,7 +703,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         centerTitle: true,
         title: Text(
           widget.post == null ? getTranslated(context, 'Post') : 'Edit Post',
-          style: TextStyle(color: kDeepPurpleColor),
+          style: const TextStyle(color: kDeepPurpleColor),
         ),
       ),
       body: Stack(

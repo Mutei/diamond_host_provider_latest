@@ -495,7 +495,7 @@ class AuthenticationMethods {
   }) async {
     try {
       final date = DateFormat('dd/MM/yyyy').format(DateTime.now());
-      final token = await FirebaseMessaging.instance.getToken();
+      // final token = await FirebaseMessaging.instance.getToken();
       await _db.child('App/User/$userId').set({
         'Email': email,
         'Password': password,
@@ -505,7 +505,7 @@ class AuthenticationMethods {
         'TypeUser': '2',
         'DateOfRegistration': date,
         'TypeAccount': '1',
-        'Token': token,
+        // 'Token': token,
         'IsVerified': true,
       });
     } catch (e) {

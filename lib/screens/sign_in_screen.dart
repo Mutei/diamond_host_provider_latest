@@ -48,7 +48,7 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   Future<void> _launchTermsUrl() async {
-    const url = 'https://www.diamondstel.com/Home/privacypolicy';
+    const url = 'https://redakapp.com/terms-%26-conditions';
     try {
       await launch(url, forceWebView: false);
     } catch (e) {

@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../backend/firebase_services.dart';
 import '../constants/styles.dart';
 import '../localization/language_constants.dart';
@@ -21,109 +25,143 @@ class ProviderNotificationScreen extends StatefulWidget {
 class _ProviderNotificationScreenState
     extends State<ProviderNotificationScreen> {
   final FirebaseServices _firebaseServices = FirebaseServices();
-  List<Map<String, dynamic>> estateNotifications = [];
+  List<Map<String, dynamic>> _allNotifications = [];
+  List<Map<String, dynamic>> _scoped = [];
+
   String? userId;
   bool isLoading = true;
   List<Rooms> LstRooms = [];
+
+  // ------ Scope persisted by MainScreenContent ------
+  static const _kScopeUidKey = 'scope.uid';
+  static const _kScopeIsAllKey = 'scope.isAll';
+  static const _kScopeEstateIdKey = 'scope.estateId';
+  static const _kScopeEstateNameKey = 'scope.estateName';
+
+  bool _scopeAll = true; // default to ALL if nothing saved
+  String? _scopeEstateId; // when not ALL
+  String? _scopeEstateName; // display only
 
   @override
   void initState() {
     super.initState();
     userId = FirebaseAuth.instance.currentUser?.uid;
-    // Initialize any background listener if needed
+    // Background listener (kept as-is)
     _firebaseServices.setupEstateStatusListener();
-    _loadNotifications();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    setState(() => isLoading = true);
+
+    await _restoreScopeFromPrefs(); // <-- read what user chose on Main Screen
+    await _loadNotifications(); // fetch all estates owned by this user
+    _applyScopeFilter(); // filter according to saved scope
+
+    if (mounted) setState(() => isLoading = false);
+  }
+
+  Future<void> _restoreScopeFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final savedUid = prefs.getString(_kScopeUidKey);
+    if (savedUid != uid) {
+      // different user -> ignore, stick to defaults
+      _scopeAll = true;
+      _scopeEstateId = null;
+      _scopeEstateName = getTranslated(context, "-- All estates --");
+      return;
+    }
+
+    _scopeAll = prefs.getBool(_kScopeIsAllKey) ?? true;
+    if (_scopeAll) {
+      _scopeEstateId = null;
+      _scopeEstateName = prefs.getString(_kScopeEstateNameKey) ??
+          getTranslated(context, "-- All estates --");
+    } else {
+      _scopeEstateId = prefs.getString(_kScopeEstateIdKey);
+      _scopeEstateName =
+          prefs.getString(_kScopeEstateNameKey) ?? _scopeEstateId ?? "";
+    }
   }
 
   /// Fetch notifications for a given estate type, storing all data.
   Future<List<Map<String, dynamic>>> _fetchNotificationsForType(
       String estateType) async {
-    List<Map<String, dynamic>> notifications = [];
-    DatabaseReference ref =
-        FirebaseDatabase.instance.ref("App/Estate").child(estateType);
+    final notifications = <Map<String, dynamic>>[];
+    final ref = FirebaseDatabase.instance.ref("App/Estate").child(estateType);
 
     try {
       final snapshot = await ref.get();
       if (snapshot.exists) {
-        for (DataSnapshot child in snapshot.children) {
+        for (final child in snapshot.children) {
           final estateData = Map<String, dynamic>.from(child.value as Map);
 
-          // Filter by user ID
+          // Filter by owner
           if (estateData['IDUser'] != userId) continue;
 
-          // Extract the estate status (IsAccepted field)
-          String estateStatus = estateData['IsAccepted']?.toString() ?? '1';
+          // Extract status
+          final estateStatus = estateData['IsAccepted']?.toString() ?? '1';
 
-          // Add all fields from the DB + child key as 'estateId'
-          final fullEstate = {
-            ...estateData, // Spread all DB fields
-            'estateId': child.key, // Keep the child key
-            'status': estateStatus, // For convenience in the UI
-          };
-
-          notifications.add(fullEstate);
-
-          // Optionally send a notification if required
-          await _firebaseServices.checkAndSendNotification(
-            child.key ?? '',
-            estateType,
-            estateData,
-            estateStatus,
-          );
+          // Include all fields + id + status
+          notifications.add({
+            ...estateData,
+            'estateId': child.key,
+            'status': estateStatus,
+          });
         }
       }
     } catch (e) {
-      print("Error fetching notifications for $estateType: $e");
+      // ignore or log
+      // print("Error fetching notifications for $estateType: $e");
     }
     return notifications;
   }
 
-  /// Load all notifications concurrently for the different estate types.
+  /// Load all notifications concurrently for estate types.
   Future<void> _loadNotifications() async {
-    setState(() {
-      isLoading = true;
-      estateNotifications.clear();
-    });
-
-    List<String> estateTypes = ["Coffee", "Hottel", "Restaurant"];
-    List<Future<List<Map<String, dynamic>>>> futures =
-        estateTypes.map((type) => _fetchNotificationsForType(type)).toList();
+    _allNotifications.clear();
+    final estateTypes = ["Coffee", "Hottel", "Restaurant"];
+    final futures = estateTypes.map(_fetchNotificationsForType).toList();
 
     try {
-      List<List<Map<String, dynamic>>> results = await Future.wait(futures);
-      // Flatten the lists
-      List<Map<String, dynamic>> allNotifications = [];
-      for (var list in results) {
-        allNotifications.addAll(list);
+      final results = await Future.wait(futures);
+      final flat = <Map<String, dynamic>>[];
+      for (final list in results) {
+        flat.addAll(list);
       }
 
-      // Remove duplicates if necessary
-      final uniqueNotifications = <String, Map<String, dynamic>>{};
-      for (var notif in allNotifications) {
-        uniqueNotifications[notif['estateId']] = notif;
+      // de-duplicate by estateId
+      final unique = <String, Map<String, dynamic>>{};
+      for (final m in flat) {
+        unique[m['estateId']] = m;
       }
-
-      setState(() {
-        estateNotifications = uniqueNotifications.values.toList();
-        isLoading = false;
-      });
-    } catch (e) {
-      print("Error loading notifications: $e");
-      setState(() {
-        isLoading = false;
-      });
+      _allNotifications = unique.values.toList();
+    } catch (_) {
+      _allNotifications = [];
     }
   }
 
-  /// Builds a card to display each estate's notification and handles navigation.
-  Widget _buildNotificationCard(Map<String, dynamic> notification) {
-    // Decide which name to show based on the current language
-    String estateName = Localizations.localeOf(context).languageCode == 'ar'
-        ? (notification["NameAr"] ?? '')
-        : (notification["NameEn"] ?? '');
+  void _applyScopeFilter() {
+    if (_scopeAll || _scopeEstateId == null) {
+      _scoped = _allNotifications;
+    } else {
+      _scoped = _allNotifications
+          .where((e) => (e['estateId']?.toString() ?? '') == _scopeEstateId)
+          .toList();
+    }
+  }
 
-    // The status we set above
-    String estateStatus = notification["status"] ?? '1';
+  /// Builds a card for each estate and handles navigation.
+  Widget _buildNotificationCard(Map<String, dynamic> notification) {
+    // localized name
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final estateName =
+        isAr ? (notification["NameAr"] ?? '') : (notification["NameEn"] ?? '');
+
+    final estateStatus = notification["status"]?.toString() ?? '1';
 
     String statusText;
     Color statusColor;
@@ -179,8 +217,8 @@ class _ProviderNotificationScreenState
         ),
         trailing: Icon(Icons.arrow_forward_ios, size: 16, color: statusColor),
         onTap: () {
-          // If estate is accepted
           if (estateStatus == "2") {
+            // Accepted -> Profile
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -195,7 +233,7 @@ class _ProviderNotificationScreenState
                       0,
                   fee: notification['Fee'] ?? '',
                   deliveryTime: notification['Time'] ?? '',
-                  price: 0.0, // Adjust if you have a real price
+                  price: 0.0,
                   typeOfRestaurant: notification['TypeofRestaurant'] ?? '',
                   bioEn: notification['BioEn'] ?? '',
                   bioAr: notification['BioAr'] ?? '',
@@ -223,9 +261,8 @@ class _ProviderNotificationScreenState
                 ),
               ),
             );
-          }
-          // If estate is rejected
-          else if (estateStatus == "3") {
+          } else if (estateStatus == "3") {
+            // Rejected
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
@@ -233,17 +270,8 @@ class _ProviderNotificationScreenState
                 ),
               ),
             );
-          }
-          // If estate is under process
-          else {
-            // We navigate to EditEstate with the entire notification map
-            // so all fields appear in the edit form.
-            print("Navigating to EditEstate with the following details:");
-            print("Estate Object: $notification");
-            print("LstRooms: $LstRooms");
-            print("Estate Type: ${notification['Type']}");
-            print("Estate ID: ${notification['estateId']}");
-
+          } else {
+            // Under process -> go to edit (Type '1' means Hotel in your app)
             if (notification['Type'] == '1') {
               Navigator.push(
                 context,
@@ -275,8 +303,13 @@ class _ProviderNotificationScreenState
     );
   }
 
+  // ---- UI ----
   @override
   Widget build(BuildContext context) {
+    final scopeLabel = _scopeAll
+        ? getTranslated(context, "-- All estates --")
+        : (_scopeEstateName ?? getTranslated(context, "Choose control scope"));
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -287,20 +320,50 @@ class _ProviderNotificationScreenState
         iconTheme: kIconTheme,
       ),
       body: RefreshIndicator(
-        onRefresh: _loadNotifications,
+        onRefresh: () async {
+          await _restoreScopeFromPrefs(); // reflect any change made on Main Screen
+          await _loadNotifications();
+          _applyScopeFilter();
+          setState(() {});
+        },
         child: isLoading
             ? const Center(child: CircularProgressIndicator())
-            : estateNotifications.isEmpty
+            : _allNotifications.isEmpty
                 ? Center(
                     child: Text(
                       getTranslated(context, "You have not added any estates"),
+                      style: kSecondaryStyle,
                     ),
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    itemCount: estateNotifications.length,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 12),
+                    itemCount:
+                        _scoped.length + 1, // +1 for the scope chip header
                     itemBuilder: (context, index) {
-                      return _buildNotificationCard(estateNotifications[index]);
+                      if (index == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Row(
+                            children: [
+                              Chip(label: Text(scopeLabel)),
+                              // const SizedBox(width: 8),
+                              // Text(
+                              //   getTranslated(
+                              //     context,
+                              //     "Change it from Main Screen",
+                              //   ),
+                              //   style: Theme.of(context)
+                              //       .textTheme
+                              //       .bodySmall
+                              //       ?.copyWith(color: Colors.black54),
+                              // ),
+                            ],
+                          ),
+                        );
+                      }
+                      final item = _scoped[index - 1];
+                      return _buildNotificationCard(item);
                     },
                   ),
       ),

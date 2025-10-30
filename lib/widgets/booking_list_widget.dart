@@ -7,18 +7,22 @@ import 'package:shimmer/shimmer.dart';
 import 'package:intl/intl.dart';
 
 import '../localization/language_constants.dart';
-import '../screens/request_screen.dart';
 
 class BookingList extends StatefulWidget {
   final String status;
   final Future<void> Function(BuildContext, Map)? showDialogFunction;
   final Future<void> Function(BuildContext, Map)? showDialogCoffeFunction;
 
-  BookingList({
+  // NEW: optional estate filter
+  final String? filterEstateId;
+
+  const BookingList({
+    Key? key,
     required this.status,
     this.showDialogFunction,
     this.showDialogCoffeFunction,
-  });
+    this.filterEstateId, // NEW
+  }) : super(key: key);
 
   @override
   _BookingListState createState() => _BookingListState();
@@ -108,7 +112,7 @@ class _BookingListState extends State<BookingList> {
       children: [
         10.kH,
 
-        // Date-range pickers
+        // Date range
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           child: Row(
@@ -117,13 +121,12 @@ class _BookingListState extends State<BookingList> {
                 child: InkWell(
                   onTap: _selectStartDate,
                   child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: getTranslated(context, "FromDate"),
+                    decoration: const InputDecoration(
+                      labelText: "FromDate",
                       border: OutlineInputBorder(),
                     ),
                     child: Text(
-                      _startDate != null ? _df.format(_startDate!) : "-",
-                    ),
+                        _startDate != null ? _df.format(_startDate!) : "-"),
                   ),
                 ),
               ),
@@ -132,13 +135,11 @@ class _BookingListState extends State<BookingList> {
                 child: InkWell(
                   onTap: _selectEndDate,
                   child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: getTranslated(context, "ToDate"),
+                    decoration: const InputDecoration(
+                      labelText: "ToDate",
                       border: OutlineInputBorder(),
                     ),
-                    child: Text(
-                      _endDate != null ? _df.format(_endDate!) : "-",
-                    ),
+                    child: Text(_endDate != null ? _df.format(_endDate!) : "-"),
                   ),
                 ),
               ),
@@ -146,7 +147,7 @@ class _BookingListState extends State<BookingList> {
           ),
         ),
 
-        // Search bar
+        // Search
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: TextField(
@@ -157,19 +158,16 @@ class _BookingListState extends State<BookingList> {
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: _clearSearch,
-                    )
+                      icon: const Icon(Icons.clear), onPressed: _clearSearch)
                   : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onChanged: _updateSearchQuery,
           ),
         ),
 
-        // Booking list
+        // List
         Expanded(
           child: StreamBuilder<DatabaseEvent>(
             stream: query.onValue,
@@ -181,15 +179,12 @@ class _BookingListState extends State<BookingList> {
               final dbSnap = snapshot.data?.snapshot;
               if (dbSnap == null || dbSnap.value == null) {
                 return Center(
-                  child: Text(noRequestsText,
-                      style: const TextStyle(fontSize: 16)),
-                );
+                    child: Text(noRequestsText,
+                        style: const TextStyle(fontSize: 16)));
               }
 
-              // 1) collect all children
               final all = dbSnap.children.toList();
 
-              // 2) apply all filters in one go
               final filtered = all.where((snap) {
                 final v = Map<String, dynamic>.from(
                     snap.value as Map<dynamic, dynamic>);
@@ -197,18 +192,26 @@ class _BookingListState extends State<BookingList> {
                 // Owner filter
                 if (v['IDOwner']?.toString() != currentUid) return false;
 
-                // Text search filter
+                // Estate scope filter (NEW)
+                if (widget.filterEstateId != null &&
+                    (v['IDEstate']?.toString() ?? '') !=
+                        widget.filterEstateId) {
+                  return false;
+                }
+
+                // Text search
                 if (_searchQuery.isNotEmpty) {
                   final q = _searchQuery.toLowerCase();
                   final id = v['IDBook'].toString().toLowerCase();
-                  final phone = v['PhoneNumber'].toString().toLowerCase();
+                  final phone =
+                      (v['PhoneNumber'] ?? '').toString().toLowerCase();
                   if (!(id.contains(q) || phone.contains(q))) return false;
                 }
 
-                // Date-range filter
+                // Date range
                 if ((_startDate != null || _endDate != null) &&
                     v['StartDate'] != null) {
-                  final dt = DateTime.tryParse(v['StartDate']);
+                  final dt = DateTime.tryParse(v['StartDate'].toString());
                   if (dt == null) return false;
 
                   if (_startDate != null && _endDate == null) {
@@ -226,10 +229,10 @@ class _BookingListState extends State<BookingList> {
                   }
                 }
 
-                // Time-based “accepted/rejected” filter
+                // Time-based recent acceptance/rejection visibility
                 if ((widget.status == "2" || widget.status == "3") &&
                     v['StartDate'] != null) {
-                  DateTime? sd = DateTime.tryParse(v['StartDate']);
+                  DateTime? sd = DateTime.tryParse(v['StartDate'].toString());
                   final c = v['Clock']?.toString() ?? "";
                   if (sd != null && c.contains(':')) {
                     final p = c.split(':');
@@ -244,15 +247,12 @@ class _BookingListState extends State<BookingList> {
                 return true;
               }).toList();
 
-              // 3) if nothing remains → “no requests”
               if (filtered.isEmpty) {
                 return Center(
-                  child: Text(noRequestsText,
-                      style: const TextStyle(fontSize: 16)),
-                );
+                    child: Text(noRequestsText,
+                        style: const TextStyle(fontSize: 16)));
               }
 
-              // 4) otherwise render exactly those bookings
               return ListView.builder(
                 itemCount: filtered.length,
                 itemBuilder: (ctx, i) {
@@ -272,13 +272,11 @@ class _BookingListState extends State<BookingList> {
 
   Widget _buildBookingCard(
       BuildContext context, Map<String, dynamic> v, DateTime now) {
-    // Locale-aware estate name
     final locale = Localizations.localeOf(context).languageCode;
     final estateName = locale == 'ar'
         ? (v['NameAr'] ?? 'غير معروف')
         : (v['NameEn'] ?? 'Unknown');
 
-    // Build rejection display
     String rejectionDisplay = '';
     if (v['Status'] == '3' && v['RejectionReason'] != null) {
       final rr = v['RejectionReason'];
@@ -306,9 +304,7 @@ class _BookingListState extends State<BookingList> {
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: Card(
         elevation: 3,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: _handleTap,
@@ -316,7 +312,6 @@ class _BookingListState extends State<BookingList> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // Header row: ID + status
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -331,8 +326,6 @@ class _BookingListState extends State<BookingList> {
                 const SizedBox(height: 20),
                 const Divider(height: 1),
                 const SizedBox(height: 20),
-
-                // FromDate / ToDate
                 Row(
                   children: [
                     Expanded(
@@ -357,8 +350,6 @@ class _BookingListState extends State<BookingList> {
                   ],
                 ),
                 const SizedBox(height: 20),
-
-                // Time & Customer Name
                 Row(
                   children: [
                     Expanded(
@@ -381,8 +372,27 @@ class _BookingListState extends State<BookingList> {
                   ],
                 ),
                 const SizedBox(height: 20),
-
-                // Phone & Rate
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildIconText(
+                        context: context,
+                        icon: Icons.person_pin_circle,
+                        label: getTranslated(context, "Number of Guests") ?? '',
+                        value: v['NumberOfCustomers'].toString(),
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildIconText(
+                        context: context,
+                        icon: Icons.business,
+                        label: getTranslated(context, "Estate Name") ?? '',
+                        value: estateName,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
                 Row(
                   children: [
                     Expanded(
@@ -408,8 +418,6 @@ class _BookingListState extends State<BookingList> {
                   ],
                 ),
                 const SizedBox(height: 20),
-
-                // Smoker & Allergies
                 Row(
                   children: [
                     Expanded(
@@ -432,23 +440,6 @@ class _BookingListState extends State<BookingList> {
                   ],
                 ),
                 const SizedBox(height: 20),
-
-                // Estate Name
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildIconText(
-                        context: context,
-                        icon: Icons.business,
-                        label: getTranslated(context, "Estate Name") ?? '',
-                        value: estateName,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                // Rejection reason
                 if (v['Status'] == '3' && rejectionDisplay.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 20),

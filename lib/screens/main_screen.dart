@@ -1,3 +1,4 @@
+// main_screen.dart
 import 'dart:async';
 
 import 'package:daimond_host_provider/localization/language_constants.dart';
@@ -9,15 +10,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../backend/firebase_services.dart';
 import '../widgets/bottom_navigation_bar.dart';
 import 'all_posts_screen.dart';
-import 'notification_screen.dart';
-import 'upgrade_account_screen.dart';
 import 'main_screen_content.dart';
-import 'package:provider/provider.dart';
 import '../state_management/general_provider.dart';
 import 'login_screen.dart';
+
+enum _DeviceScopeType { none, all, estate }
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -26,20 +29,21 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   bool isPersonalInfoMissing = false;
   String userId = FirebaseAuth.instance.currentUser!.uid;
   Map<String, dynamic> dataUser = {};
 
-  // Token listener variables for single-device login
-  String? currentDeviceToken;
-  late DatabaseReference tokenRef;
-  StreamSubscription<DatabaseEvent>? tokenSubscription;
-  Timer? _logoutTimer;
+  // Per-device notifications
+  String? _currentFcmToken;
+  StreamSubscription<String>? _tokenRefreshSub;
 
   // Listener for disabled accounts
   StreamSubscription<User?>? _disabledListener;
+
+  // prevent multiple popups within the same foreground session
+  bool _dialogShownThisResume = false;
 
   final List<Widget> _screens = [
     const MainScreenContent(),
@@ -50,40 +54,246 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
     checkPersonalInfo();
-    checkEstateBranchInfo(); // ← New: check branches
+    checkEstateBranchInfo();
     FirebaseServices().initMessage();
-    _initializeTokenListener();
+    _registerDeviceToken();
     _initializeDisabledListener();
 
+    // First-frame check (app just opened)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<GeneralProvider>(context, listen: false);
-      if (provider.newRequestCount > 0) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text(getTranslated(context, "New Booking Request")),
-            content: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(getTranslated(context, "You have")),
-                Text(
-                  " ${provider.newRequestCount} ",
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text(getTranslated(context, "new booking request(s).")),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(getTranslated(context, "OK")),
-              )
+      _maybeShowNewRequestsDialog();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _tokenRefreshSub?.cancel();
+    _disabledListener?.cancel();
+    super.dispose();
+  }
+
+  // Foreground/background tracking
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _dialogShownThisResume = false; // reset for this resume
+      _maybeShowNewRequestsDialog();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      // next time we resume, we allow dialog again
+      _dialogShownThisResume = false;
+    }
+  }
+
+  /// -------- Per-device token registration (multi-device support) --------
+  Future<void> _registerDeviceToken() async {
+    try {
+      _currentFcmToken = await FirebaseMessaging.instance.getToken();
+      if (_currentFcmToken == null) return;
+      await _saveToken(_currentFcmToken!);
+
+      // Keep token fresh
+      _tokenRefreshSub =
+          FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+        _currentFcmToken = newToken;
+        await _saveToken(newToken);
+      });
+    } catch (e) {
+      debugPrint('[_registerDeviceToken] $e');
+    }
+  }
+
+  Future<void> _saveToken(String token) async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+
+      final tokensRef =
+          FirebaseDatabase.instance.ref('App/User/$uid/Tokens/$token');
+
+      await tokensRef.set({
+        'createdAt': ServerValue.timestamp,
+        'active': true,
+      });
+    } catch (e) {
+      debugPrint('[saveToken] $e');
+    }
+  }
+
+  // --------- Scoped dialog helpers ---------
+
+  Future<({_DeviceScopeType type, String? estateId})> _getDeviceScope() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final token = await FirebaseMessaging.instance.getToken();
+      if (uid == null) {
+        return (type: _DeviceScopeType.none, estateId: null);
+      }
+
+      // 1) Token scope
+      if (token != null) {
+        final tokenScopeSnap = await FirebaseDatabase.instance
+            .ref('App/User/$uid/Tokens/$token/scope')
+            .get();
+
+        final t = tokenScopeSnap.child('type').value?.toString();
+        if (t == 'all') {
+          return (type: _DeviceScopeType.all, estateId: null);
+        }
+        if (t == 'estate') {
+          final e = tokenScopeSnap.child('estateId').value?.toString();
+          if (e != null && e.isNotEmpty) {
+            return (type: _DeviceScopeType.estate, estateId: e);
+          }
+        }
+      }
+
+      // 2) User-wide scope
+      final userScopeSnap = await FirebaseDatabase.instance
+          .ref('App/User/$uid/CurrentScope')
+          .get();
+      final userType = userScopeSnap.child('type').value?.toString();
+      if (userType == 'all') {
+        return (type: _DeviceScopeType.all, estateId: null);
+      }
+      if (userType == 'estate') {
+        final e = userScopeSnap.child('estateId').value?.toString();
+        if (e != null && e.isNotEmpty) {
+          return (type: _DeviceScopeType.estate, estateId: e);
+        }
+      }
+
+      // 3) SharedPreferences fallback (your scope picker keys)
+      final sp = await SharedPreferences.getInstance();
+      final isAll = sp.getBool('scope.isAll') ?? false;
+      if (isAll) {
+        return (type: _DeviceScopeType.all, estateId: null);
+      } else {
+        final savedId = sp.getString('scope.estateId');
+        if (savedId != null && savedId.isNotEmpty) {
+          return (type: _DeviceScopeType.estate, estateId: savedId);
+        }
+      }
+
+      return (type: _DeviceScopeType.none, estateId: null);
+    } catch (_) {
+      return (type: _DeviceScopeType.none, estateId: null);
+    }
+  }
+
+  Future<int> _countPendingRequests({
+    required _DeviceScopeType scopeType,
+    String? estateId,
+  }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return 0;
+
+    // Query bookings for this provider, then filter on estate if needed
+    final ref = FirebaseDatabase.instance
+        .ref('App/Booking/Book')
+        .orderByChild('IDOwner')
+        .equalTo(uid);
+    final snap = await ref.get();
+    if (!snap.exists) return 0;
+
+    int cnt = 0;
+    for (final c in snap.children) {
+      final v = c.value;
+      if (v is Map) {
+        final statusRaw = v['Status'];
+        final isPending = statusRaw == '1' || statusRaw == 1;
+        if (!isPending) continue;
+
+        if (scopeType == _DeviceScopeType.estate) {
+          final eId = v['IDEstate']?.toString();
+          if (eId != estateId) continue;
+        }
+        // scopeType == all → no estate filter
+        cnt++;
+      }
+    }
+    return cnt;
+  }
+
+  Future<void> _maybeShowNewRequestsDialog() async {
+    if (!mounted || _dialogShownThisResume) return;
+
+    final scope = await _getDeviceScope();
+
+    // No scope → do not show any dialog
+    if (scope.type == _DeviceScopeType.none) return;
+
+    final pendingCount = await _countPendingRequests(
+      scopeType: scope.type,
+      estateId: scope.estateId,
+    );
+
+    if (pendingCount > 0 && mounted) {
+      _dialogShownThisResume = true; // show once per foreground session
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(getTranslated(context, "New Booking Request")),
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(getTranslated(context, "You have")),
+              Text(
+                " $pendingCount ",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text(getTranslated(context, "new booking request(s).")),
             ],
           ),
-        );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(getTranslated(context, "OK")),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  /// Initialize listener to detect if the user's Firebase Auth account is disabled
+  Future<void> _initializeDisabledListener() async {
+    _disabledListener = FirebaseAuth.instance.idTokenChanges().listen((user) {
+      if (user != null) {
+        user.getIdToken(true).catchError((err) {
+          if (err is FirebaseAuthException && err.code == 'user-disabled') {
+            _signOut();
+          }
+        });
       }
     });
+  }
+
+  /// Sign the user out and navigate back to the login screen
+  Future<void> _signOut() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null && _currentFcmToken != null) {
+        final tokensRef = FirebaseDatabase.instance
+            .ref('App/User/$uid/Tokens/${_currentFcmToken!}');
+        await tokensRef.remove();
+      }
+    } catch (e) {
+      debugPrint('[signOut] token cleanup failed: $e');
+    }
+
+    await FirebaseAuth.instance.signOut();
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (Route<dynamic> route) => false,
+      );
+    }
   }
 
   /// New: Check if any of user's estates have missing branches
@@ -111,6 +321,7 @@ class _MainScreenState extends State<MainScreen> {
               final String displayName = languageCode == 'ar' ? nameAr : nameEn;
 
               if (branchEn.toString().isEmpty || branchAr.toString().isEmpty) {
+                if (!mounted) return;
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
@@ -159,86 +370,8 @@ class _MainScreenState extends State<MainScreen> {
         }
       }
     } catch (e) {
-      print("Error checking estate branch info: $e");
+      debugPrint("Error checking estate branch info: $e");
     }
-  }
-
-  /// Initialize token listener to enforce single-device login
-  Future<void> _initializeTokenListener() async {
-    currentDeviceToken = await FirebaseMessaging.instance.getToken();
-    String uid = FirebaseAuth.instance.currentUser!.uid;
-    tokenRef = FirebaseDatabase.instance.ref("App/User/$uid/Token");
-    tokenSubscription = tokenRef.onValue.listen((DatabaseEvent event) {
-      final remoteToken = event.snapshot.value as String?;
-      if (remoteToken != null &&
-          currentDeviceToken != null &&
-          remoteToken != currentDeviceToken) {
-        _handleTokenMismatch();
-      }
-    });
-  }
-
-  /// Initialize listener to detect if the user's Firebase Auth account is disabled
-  Future<void> _initializeDisabledListener() async {
-    _disabledListener = FirebaseAuth.instance.idTokenChanges().listen((user) {
-      if (user != null) {
-        user.getIdToken(true).catchError((err) {
-          if (err is FirebaseAuthException && err.code == 'user-disabled') {
-            _signOut();
-          }
-        });
-      }
-    });
-  }
-
-  /// Handle token mismatch by alerting the user and signing them out
-  void _handleTokenMismatch() {
-    if (_logoutTimer != null) return;
-    _logoutTimer = Timer(const Duration(seconds: 5), () {
-      _signOut();
-    });
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(getTranslated(context, "Session Ended")),
-          content: Text(
-            getTranslated(context,
-                "Your account has been logged in from another device. This session will be closed."),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                _logoutTimer?.cancel();
-                _logoutTimer = null;
-                Navigator.of(context).pop();
-                _signOut();
-              },
-              child: Text(getTranslated(context, "OK")),
-            )
-          ],
-        );
-      },
-    );
-  }
-
-  /// Sign the user out and navigate back to the login screen
-  Future<void> _signOut() async {
-    await FirebaseAuth.instance.signOut();
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-      (Route<dynamic> route) => false,
-    );
-  }
-
-  @override
-  void dispose() {
-    tokenSubscription?.cancel();
-    _disabledListener?.cancel();
-    _logoutTimer?.cancel();
-    super.dispose();
   }
 
   /// Check if personal info is missing and prompt update
@@ -272,6 +405,7 @@ class _MainScreenState extends State<MainScreen> {
             isCountryMissing) {
           setState(() => isPersonalInfoMissing = true);
 
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -286,7 +420,7 @@ class _MainScreenState extends State<MainScreen> {
         }
       }
     } catch (error) {
-      print("Error fetching user data: $error");
+      debugPrint("Error fetching user data: $error");
     }
   }
 

@@ -689,5 +689,52 @@
   "Choose a date for photography":"اختر تاريخ التصوير",
   "Tap to select a date":"اضغط لاختيار تاريخ",
   "Available time":"الوقت المتاح",
-  "screen": "شاشة تلفاز"
+  "screen": "شاشة تلفاز",
+  "Choose control scope": "اختر نطاق التحكم",
+  "Estate": "المنشأة",
+  "-- All estates --": "-- جميع المنشآت --",
+  "PIN": "الرمز السري",
+  "Enter the PIN": "أدخل الرمز السري",
+  "Ask the owner for this estate's PIN (or the “All estates” PIN for owners).": "اطلب من المالك رمز هذه المنشأة (أو رمز \"جميع المنشآت\" للمالكين).",
+  "Required": "مطلوب",
+  "Incorrect PIN": "الرمز السري غير صحيح",
+  "Enter": "دخول",
+  "Change scope": "تغيير الفروع",
+  "Scope will update once you return to Home.": "سيتم تحديث النطاق عند العودة إلى الصفحة الرئيسية.",
+  "Switch the estate you manage": "بدِّل المنشأة التي تديرها",
+  "You're the owner": "أنت المالك",
+  "Create an All estates PIN. Share it only with trusted owners/admins. For managers, add per‑estate PINs under Access PINs later.": "أنشئ رمز «جميع المنشآت». شاركه فقط مع المالكين/المشرفين الموثوقين. وللمدراء، أضِف رموزًا لكل منشأة لاحقًا ضمن «أكواد الدخول».",
+  "All estates PIN": "رمز جميع المنشآت",
+  "Enter a PIN (e.g. 1234)": "أدخل رمزًا سريًا (مثال: 1234)",
+  "Access required": "يلزم الوصول",
+  "You don't have access yet. Ask the owner to add your PIN under Access PINs.": "ليس لديك صلاحية بعد. اطلب من المالك إضافة رمزك ضمن «أكواد الدخول».",
+  "Create an All estates PIN. Share it only with trusted owners/admins. For managers, add per-estate PINs under Access PINs later.": "أنشئ رمز «جميع المنشآت». شاركه فقط مع المالكين/المشرفين الموثوقين. وللمدراء، أضِف رموزًا لكل منشأة لاحقًا ضمن «أكواد الدخول».",
+  "WelcomeName": "مرحبًا، {name}!",
+  "WelcomeBody": "سعداء بانضمامك إلينا 🎉",
+  "You cannot add a new estate at the moment.": "لا يمكنك إضافة منشأة جديد في الوقت الحالي.",
+  "Add post for your estate": "أضف منشورًا لمنشأتك",
+  "Change estate name?": "هل أنت متأكد أنك تريد تغيير اسم العقار؟",
+  "Are you sure you want to change the estate name? If you proceed, your estate will go under process for review": "هل أنت متأكد أنك تريد تغيير اسم العقار؟ إذا تابعت، فسيتم وضع منشأتك قيد المراجعة",
+  "Yes, continue": "نعم، استمر",
+  "International Restaurant": "مطبخ عالمي",
+  "Redak Assistant": "المساعد ريداك",
+  "Ask a question...": "اكتب سؤالك...",
+  "Chat Bot": "الرد الآلي",
+  "Security": "الأمان",
+  "Set / Change PIN": "تعيين / تغيير الرقم السري",
+  "Verify Phone": "تحقق من رقم الهاتف",
+  "Use E.164 format, e.g. +9665XXXXXXXX": "استخدم تنسيق E.164، مثال: ‎+9665XXXXXXXX",
+  "Send Code": "إرسال الرمز",
+  "Verify & Delete": "تحقق واحذف",
+  "Code sent": "تم إرسال الرمز",
+  "Invalid code": "رمز غير صالح",
+  "Please request the code first": "يرجى طلب الرمز أولاً",
+  "Enter the OTP code": "أدخل رمز التحقق",
+  "Phone not found": "لم يتم العثور على رقم الهاتف",
+  "We couldn't find a phone number linked to your account.": "لم نتمكن من العثور على رقم هاتف مرتبط بحسابك.",
+  "Failed to send code": "فشل في إرسال الرمز",
+
+  "An authentication error occurred": "حدث خطأ في المصادقة",
+
+  "Sending code...": "جاري إرسال الرمز..."
 }

@@ -7,6 +7,9 @@ import '../widgets/reused_appbar.dart';
 import '../widgets/reused_elevated_button.dart';
 import 'main_screen.dart';
 
+// 👇 add this
+import '../services/local_notifications.dart';
+
 class FillInfoScreen extends StatefulWidget {
   const FillInfoScreen({super.key});
 
@@ -27,11 +30,20 @@ class _FillInfoScreenState extends State<FillInfoScreen> {
   final DatabaseReference _db = FirebaseDatabase.instance.ref();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // same helper you used in personal_info_screen
+  String _trWithPlaceholders(
+      BuildContext context, String key, Map<String, String> ph) {
+    String s = getTranslated(context, key);
+    ph.forEach((k, v) => s = s.replaceAll(k, v));
+    return s;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: ReusedAppBar(
-          title: getTranslated(context, "Fill up your Personal Information")),
+        title: getTranslated(context, "Fill up your Personal Information"),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -85,6 +97,7 @@ class _FillInfoScreenState extends State<FillInfoScreen> {
                   });
                 },
               ),
+              const SizedBox(height: 16),
               CustomButton(
                 text: getTranslated(context, 'Save'),
                 onPressed: saveUserInfo,
@@ -99,10 +112,14 @@ class _FillInfoScreenState extends State<FillInfoScreen> {
   Future<void> saveUserInfo() async {
     if (_formKey.currentState!.validate()) {
       User? currentUser = _auth.currentUser;
-      print("Current user: ${currentUser?.uid}");
+      debugPrint("Current user: ${currentUser?.uid}");
 
       if (currentUser != null) {
-        await _db.child('App/User/${currentUser.uid}').update({
+        final uid = currentUser.uid;
+        final userRef = _db.child('App/User/$uid');
+
+        // 1) save the info
+        await userRef.update({
           'FirstName': _firstNameController.text.trim(),
           'SecondName': _secondNameController.text.trim(),
           'LastName': _lastNameController.text.trim(),
@@ -112,18 +129,43 @@ class _FillInfoScreenState extends State<FillInfoScreen> {
           'City': cityValue,
         });
 
-        print("User info saved successfully, navigating to MainScreen");
+        // 2) read TypeUser to apply the SAME condition as personal_info_screen
+        final snap = await userRef.get();
+        String? typeUser;
+        if (snap.exists && snap.value is Map) {
+          final data = Map<String, dynamic>.from(snap.value as Map);
+          typeUser = data['TypeUser']?.toString();
+        }
 
-        // Navigate to MainScreen after saving info
+        // 3) if provider -> send welcome local notification
+        if (typeUser == '2') {
+          final first = _firstNameController.text.trim();
+          final last = _lastNameController.text.trim();
+          final full = [first, last].where((s) => s.isNotEmpty).join(' ');
+
+          final String title =
+              _trWithPlaceholders(context, 'WelcomeName', {'{name}': full});
+          final String body = getTranslated(context, 'WelcomeBody');
+
+          await AppLocalNotifications.showWelcome(
+            title: title,
+            body: body,
+          );
+        }
+
+        debugPrint("User info saved successfully, navigating to MainScreen");
+
+        // 4) navigate to main
+        if (!mounted) return;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const MainScreen()),
         );
       } else {
-        print("User not authenticated, cannot save info");
+        debugPrint("User not authenticated, cannot save info");
       }
     } else {
-      print("Form validation failed");
+      debugPrint("Form validation failed");
     }
   }
 }

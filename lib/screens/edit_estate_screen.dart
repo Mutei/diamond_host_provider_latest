@@ -37,6 +37,7 @@ import '../utils/failure_dialogue.dart';
 import '../utils/global_methods.dart';
 import '../utils/rooms.dart';
 import '../utils/success_dialogue.dart';
+import '../utils/under_process_dialog.dart';
 import '../widgets/birthday_textform_field.dart';
 import '../widgets/edit_entry_visibility.dart';
 import '../widgets/edit_location_widget.dart';
@@ -77,6 +78,10 @@ class _EditEstateState extends State<EditEstate> {
   List<String> existingImageUrls = [];
   final ImagePicker imgPicker = ImagePicker();
   final FirebaseStorage storage = FirebaseStorage.instance;
+  // --- add with other fields ---
+  late final String _origNameAr;
+  late final String _origNameEn;
+  bool _setUnderProcess = false; // flip to true when user confirms name change
 
   // Text Controllers
   final TextEditingController arNameController = TextEditingController();
@@ -159,6 +164,9 @@ class _EditEstateState extends State<EditEstate> {
   @override
   void initState() {
     super.initState();
+
+    _origNameAr = (widget.objEstate["NameAr"] ?? '').toString();
+    _origNameEn = (widget.objEstate["NameEn"] ?? '').toString();
 
     // METRO: hydrate controller from existing DB object
     final metro = widget.objEstate["Metro"];
@@ -839,7 +847,6 @@ class _EditEstateState extends State<EditEstate> {
                         hint: getTranslated(context, "Name"),
                         icon: const Icon(Icons.person, color: kPurpleColor),
                         control: arNameController,
-                        readOnly: true,
                         isObsecured: false,
                         validate: true,
                         textInputType: TextInputType.text,
@@ -876,7 +883,6 @@ class _EditEstateState extends State<EditEstate> {
                         control: enNameController,
                         isObsecured: false,
                         validate: true,
-                        readOnly: true,
                         textInputType: TextInputType.text,
                       ),
                     ),
@@ -1760,23 +1766,21 @@ class _EditEstateState extends State<EditEstate> {
                         ),
                       ),
                       onTap: () async {
-                        // Required selections
-                        bool isEntryValid = validateSelection();
+                        // 1) Validate required selections and form
+                        final bool isEntryValid = validateSelection();
                         if (!isEntryValid) {
                           showDialog(
                             context: context,
-                            builder: (BuildContext context) {
-                              return const FailureDialog(
-                                text: "Incomplete Entry",
-                                text1: "Select at least 1!",
-                              );
-                            },
+                            builder: (_) => const FailureDialog(
+                              text: "Incomplete Entry",
+                              text1: "Select at least 1!",
+                            ),
                           );
                           return;
                         }
                         if (!_formKey.currentState!.validate()) return;
 
-                        // ===== Determine Riyadh-ness from the ESTATE CITY (not _metroCity) =====
+                        // 2) Metro completeness check (Riyadh only)
                         final String nowCity =
                             ((cityValue ?? widget.objEstate["City"]) ?? "")
                                 .toString()
@@ -1785,15 +1789,12 @@ class _EditEstateState extends State<EditEstate> {
                             ((widget.objEstate["City"]) ?? "")
                                 .toString()
                                 .trim();
-
                         final bool cityIsRiyadhNow =
                             nowCity.toLowerCase() == "riyadh";
                         final bool cityWasRiyadh =
                             wasCity.toLowerCase() == "riyadh";
 
-                        // ===== Metro "selection incomplete" dialog (same as AddEstates) =====
                         final List<String> selectedLines = _metro.chosenLines;
-
                         final bool hasPartialMetroSelection =
                             _metro.selectedLines.entries.any(
                           (e) =>
@@ -1819,52 +1820,35 @@ class _EditEstateState extends State<EditEstate> {
                               ),
                               actions: [
                                 TextButton(
-                                  onPressed: () {
-                                    Navigator.of(ctx)
-                                        .pop(false); // go back to fix
-                                  },
+                                  onPressed: () => Navigator.of(ctx).pop(false),
                                   child: Text(getTranslated(
                                       context, "Choose stations")),
                                 ),
                                 ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.of(ctx)
-                                        .pop(true); // proceed without metro
-                                  },
+                                  onPressed: () => Navigator.of(ctx).pop(true),
                                   child:
                                       Text(getTranslated(context, "Continue")),
                                 ),
                               ],
                             ),
                           );
-
-                          if (proceed != true) {
-                            // Stop saving; let the user fix their metro selection
-                            return;
-                          } else {
-                            // Proceed but skip Metro entirely
-                            _metro.selectedLines.clear();
-                            _metro.selectedStationsByLine.clear();
-                          }
+                          if (proceed != true) return; // let user fix
+                          // user chose to continue: clear metro so it's not saved
+                          _metro.selectedLines.clear();
+                          _metro.selectedStationsByLine.clear();
                         }
-                        // ===== END Metro dialog =====
 
-                        // Determine estate type
+                        // 3) Detect changes (excluding Metro handled above)
                         String estateType = widget.objEstate['Type'] ?? "1";
+                        bool otherChanges = false;
 
-                        // Step 1: detect any changes (non-metro)
-                        bool changesMade = false;
-
-                        if (arNameController.text !=
-                                (widget.objEstate["NameAr"] ?? '') ||
-                            arEstateBranchController.text !=
+                        // Field changes
+                        if (arEstateBranchController.text !=
                                 (widget.objEstate["BranchAr"] ?? '') ||
                             phoneNumberController.text !=
                                 (widget.objEstate["EstatePhoneNumber"] ?? '') ||
                             enEstateBranchController.text !=
                                 (widget.objEstate["BranchEn"] ?? '') ||
-                            enNameController.text !=
-                                (widget.objEstate["NameEn"] ?? '') ||
                             arBioController.text !=
                                 (widget.objEstate["BioAr"] ?? '') ||
                             enBioController.text !=
@@ -1881,9 +1865,10 @@ class _EditEstateState extends State<EditEstate> {
                             _editedLocation.longitude !=
                                 double.tryParse(
                                     widget.objEstate["Lon"].toString())) {
-                          changesMade = true;
+                          otherChanges = true;
                         }
 
+                        // Toggles & lists
                         if ((estateType == "3" &&
                                 selectedRestaurantTypes.join(",") !=
                                     (widget.objEstate["TypeofRestaurant"] ??
@@ -1896,47 +1881,46 @@ class _EditEstateState extends State<EditEstate> {
                             ((estateType == "2" || estateType == "3") &&
                                 selectedEditAdditionalsType.join(",") !=
                                     (widget.objEstate["additionals"] ?? '')) ||
-                            ((isMusicSelected ? "1" : "0") !=
-                                (widget.objEstate["Music"] ?? "0")) ||
+                            (((isMusicSelected ? "1" : "0") !=
+                                (widget.objEstate["Music"] ?? "0"))) ||
                             (lstMusicCoffee.join(",") !=
                                 (widget.objEstate["Lstmusic"] ?? '')) ||
-                            ((hasKidsArea ? "1" : "0") !=
-                                (widget.objEstate["HasKidsArea"] ?? "0")) ||
-                            ((hasSwimmingPoolSelected ? "1" : "0") !=
-                                (widget.objEstate["HasSwimmingPool"] ?? "0")) ||
-                            ((hasBarberSelected ? "1" : "0") !=
-                                (widget.objEstate["HasBarber"] ?? "0")) ||
-                            ((hasGymSelected ? "1" : "0") !=
-                                (widget.objEstate["HasGym"] ?? "0")) ||
-                            ((hasJacuzziSelected ? "1" : "0") !=
+                            (((hasKidsArea ? "1" : "0") !=
+                                (widget.objEstate["HasKidsArea"] ?? "0"))) ||
+                            (((hasSwimmingPoolSelected ? "1" : "0") !=
+                                (widget.objEstate["HasSwimmingPool"] ??
+                                    "0"))) ||
+                            (((hasBarberSelected ? "1" : "0") !=
+                                (widget.objEstate["HasBarber"] ?? "0"))) ||
+                            (((hasGymSelected ? "1" : "0") !=
+                                (widget.objEstate["HasGym"] ?? "0"))) ||
+                            (((hasJacuzziSelected ? "1" : "0") !=
                                 (widget.objEstate["HasJacuzziInRoom"] ??
-                                    "0")) ||
-                            ((hasMassageSelected ? "1" : "0") !=
-                                (widget.objEstate["HasMassage"] ?? "0")) ||
-                            ((isSmokingAllowed ? "1" : "0") !=
+                                    "0"))) ||
+                            (((hasMassageSelected ? "1" : "0") !=
+                                (widget.objEstate["HasMassage"] ?? "0"))) ||
+                            (((isSmokingAllowed ? "1" : "0") !=
                                 (widget.objEstate["IsSmokingAllowed"] ??
-                                    "0")) ||
-                            ((hasValet ? "1" : "0") !=
-                                (widget.objEstate["HasValet"] ?? "0")) ||
-                            ((valetWithFees ? "1" : "0") !=
-                                (widget.objEstate["ValetWithFees"] ?? "0"))) {
-                          changesMade = true;
+                                    "0"))) ||
+                            (((hasValet ? "1" : "0") !=
+                                (widget.objEstate["HasValet"] ?? "0"))) ||
+                            (((valetWithFees ? "1" : "0") !=
+                                (widget.objEstate["ValetWithFees"] ?? "0")))) {
+                          otherChanges = true;
                         }
 
-                        if (newImageFiles.isNotEmpty) changesMade = true;
+                        // Media/Layout
+                        if (newImageFiles.isNotEmpty) otherChanges = true;
+                        if (_pendingLayout != null) otherChanges = true;
 
-                        // ===== Step 1.5: Metro change detection (corrected) =====
+                        // Metro changed?
                         bool metroChanged = false;
-
-                        // Only compare lines/stations if both "was" and "now" are in Riyadh.
                         if (cityIsRiyadhNow && cityWasRiyadh) {
                           final nowLines = List<String>.from(_metro.chosenLines)
                             ..sort();
                           final prevLines = List<String>.from(_metroPrevLines)
                             ..sort();
-
                           const eq = ListEquality<String>();
-
                           if (nowLines.length != prevLines.length ||
                               !eq.equals(nowLines, prevLines)) {
                             metroChanged = true;
@@ -1958,58 +1942,127 @@ class _EditEstateState extends State<EditEstate> {
                             }
                           }
                         } else if (cityIsRiyadhNow != cityWasRiyadh) {
-                          // Eligibility changed (entered or left Riyadh) -> treat as metro change
                           metroChanged = true;
                         }
-                        // ===== END Metro change detection =====
+                        if (metroChanged) otherChanges = true;
 
-                        // Step 2: proceed if ANY changes, or floor plan change, or METRO change
-                        if (changesMade ||
-                            _pendingLayout != null ||
-                            metroChanged) {
-                          await Update(); // writes Metro + all fields
+                        // 4) Name change (Arabic or English)
+                        final String origAr = _origNameAr.trim();
+                        final String origEn = _origNameEn.trim();
+                        final String newAr = arNameController.text.trim();
+                        final String newEn = enNameController.text.trim();
+                        final bool nameChanged =
+                            (newAr != origAr) || (newEn != origEn);
 
-                          if (newImageFiles.isNotEmpty) {
-                            await saveUpdatedImages();
-                          }
+                        bool willSetUnderProcess = false;
 
-                          if (_pendingLayout != null) {
-                            final childType =
-                                (estateType == "2") ? "Coffee" : "Restaurant";
-                            await backendService.uploadAutoCadLayout(
-                              childType: childType,
-                              estateId: widget.estateId,
-                              layout: _pendingLayout!,
-                            );
-                            _pendingLayout = null;
-                          }
-
-                          await showDialog(
+                        if (nameChanged) {
+                          final bool? confirm = await showDialog<bool>(
                             context: context,
-                            builder: (BuildContext context) {
-                              return const SuccessDialog(
-                                text: "Success",
-                                text1:
-                                    "Your estate has been successfully updated.",
-                              );
-                            },
+                            builder: (ctx) => AlertDialog(
+                              title: Text(getTranslated(
+                                  context, "Change estate name?")),
+                              content: Text(
+                                getTranslated(context,
+                                    "Are you sure you want to change the estate name? If you proceed, your estate will go under process for review by our call center."),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(false),
+                                  child: Text(getTranslated(context, "Cancel")),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  child: Text(
+                                      getTranslated(context, "Yes, continue")),
+                                ),
+                              ],
+                            ),
                           );
 
-                          if (estateType == "2" || estateType == "3") {
-                            Navigator.of(context)
-                                .popUntil((route) => route.isFirst);
+                          if (confirm != true) {
+                            // User cancelled: revert names to originals and DO NOT save them
+                            arNameController.text = origAr;
+                            enNameController.text = origEn;
+
+                            // If there are NO other changes at all, show "No changes" and exit
+                            if (!otherChanges) {
+                              await showDialog(
+                                context: context,
+                                builder: (_) => const FailureDialog(
+                                  text: "No Changes Detected",
+                                  text1:
+                                      "You did not make any changes to your estate.",
+                                ),
+                              );
+                              return;
+                            }
+                            // else continue with saving only non-name changes
+                          } else {
+                            // Confirmed -> mark under process; proceed with save incl. new names
+                            willSetUnderProcess = true;
                           }
                         } else {
-                          await showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return const FailureDialog(
+                          // no name change; if nothing else changed, stop with "No changes"
+                          if (!otherChanges) {
+                            await showDialog(
+                              context: context,
+                              builder: (_) => const FailureDialog(
                                 text: "No Changes Detected",
                                 text1:
                                     "You did not make any changes to your estate.",
-                              );
-                            },
+                              ),
+                            );
+                            return;
+                          }
+                        }
+
+                        // 5) Single UPDATE call (includes Metro + fields)
+                        await Update(setUnderProcess: willSetUnderProcess);
+
+                        // 6) Media & layout
+                        if (newImageFiles.isNotEmpty) {
+                          await saveUpdatedImages();
+                        }
+                        if (_pendingLayout != null) {
+                          final childType =
+                              (estateType == "2") ? "Coffee" : "Restaurant";
+                          await backendService.uploadAutoCadLayout(
+                            childType: childType,
+                            estateId: widget.estateId,
+                            layout: _pendingLayout!,
                           );
+                          _pendingLayout = null;
+                        }
+
+                        // 7) Post-save dialogs
+                        if (willSetUnderProcess) {
+                          await showDialog(
+                            context: context,
+                            builder: (_) => const UnderProcessDialog(
+                              text: 'Processing',
+                              text1: 'Your request is under process.',
+                            ),
+                          );
+                        } else {
+                          await showDialog(
+                            context: context,
+                            builder: (_) => const SuccessDialog(
+                              text: "Success",
+                              text1:
+                                  "Your estate has been successfully updated.",
+                            ),
+                          );
+                        }
+
+                        // 8) Update in-memory originals to avoid re-prompt next time
+                        _origNameAr = arNameController.text;
+                        _origNameEn = enNameController.text;
+
+                        // 9) Navigate back for Coffee/Restaurant
+                        if (estateType == "2" || estateType == "3") {
+                          Navigator.of(context)
+                              .popUntil((route) => route.isFirst);
                         }
                       }),
                 )
@@ -2022,7 +2075,8 @@ class _EditEstateState extends State<EditEstate> {
   }
 
   /// Update estate information in Firebase (includes Metro)
-  Future<void> Update() async {
+  /// Update estate information in Firebase (includes Metro)
+  Future<void> Update({bool setUnderProcess = false}) async {
     String ChildType;
     String type;
     SharedPreferences sharedPreferences = await SharedPreferences.getInstance();
@@ -2031,8 +2085,9 @@ class _EditEstateState extends State<EditEstate> {
     // ===== METRO: write/remove Metro node =====
     final String effectiveCity = (cityValue ?? _metroCity ?? "").toString();
     final bool isRiyadh = effectiveCity.toLowerCase() == "riyadh";
-    final chosenLines = _metro.chosenLines;
-    final chosenStationsByLine = _metro.chosenStationsByLine;
+    final chosenLines = _metro.chosenLines; // List<String>
+    final chosenStationsByLine =
+        _metro.chosenStationsByLine; // Map<String, Set<String>>
 
     final String childTypePath = (estateType == "1")
         ? "Hottel"
@@ -2048,7 +2103,8 @@ class _EditEstateState extends State<EditEstate> {
     } else {
       final Map<String, dynamic> linesNode = {};
       for (final ln in chosenLines) {
-        final stations = (chosenStationsByLine[ln] ?? const <String>[]);
+        final stations =
+            (chosenStationsByLine[ln] ?? const <String>{}).toList();
         linesNode[ln] = {
           "Stations": stations.join(","),
         };
@@ -2064,8 +2120,8 @@ class _EditEstateState extends State<EditEstate> {
     _metroPrevLines = List<String>.from(chosenLines);
     _metroPrevStationsByLine = {};
     for (final ln in chosenLines) {
-      _metroPrevStationsByLine[ln] =
-          List<String>.from(chosenStationsByLine[ln] ?? const <String>[]);
+      _metroPrevStationsByLine[ln] = List<String>.from(
+          (chosenStationsByLine[ln] ?? const <String>{}).toList());
     }
     // ===== END METRO =====
 
@@ -2079,14 +2135,12 @@ class _EditEstateState extends State<EditEstate> {
       ChildType = "Restaurant";
       type = "3";
     }
-    String? TypeAccount = sharedPreferences.getString("TypeAccount") ?? "2";
 
+    String? TypeAccount = sharedPreferences.getString("TypeAccount") ?? "2";
     String musicValue = isMusicSelected ? "1" : "0";
 
-    await ref
-        .child(ChildType)
-        .child(widget.objEstate['IDEstate'].toString())
-        .update({
+    // Build the update map
+    final Map<String, dynamic> updateMap = {
       "NameAr": arNameController.text,
       "NameEn": enNameController.text,
       "BranchAr": arEstateBranchController.text,
@@ -2121,11 +2175,19 @@ class _EditEstateState extends State<EditEstate> {
       if (type == "2" || type == "3")
         "additionals": selectedEditAdditionalsType.join(","),
       if (type == "2") "Lstmusic": lstMusicCoffee.join(","),
-    });
+      // <- Conditionally set Under Process
+      if (setUnderProcess) "IsAccepted": "1",
+    };
 
-    // Rooms
+    await ref
+        .child(ChildType)
+        .child(widget.objEstate['IDEstate'].toString())
+        .update(updateMap);
+
+    // ===== Rooms =====
     DatabaseReference refRooms =
         FirebaseDatabase.instance.ref("App").child("Rooms");
+
     if (single) {
       await refRooms
           .child(widget.objEstate['IDEstate'].toString())

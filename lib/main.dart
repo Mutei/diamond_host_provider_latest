@@ -1,5 +1,7 @@
 // lib/main.dart
 
+import 'dart:async';
+
 import 'package:daimond_host_provider/screens/splash_screen.dart';
 import 'package:daimond_host_provider/state_management/general_provider.dart';
 import 'package:daimond_host_provider/utils/failure_dialogue.dart';
@@ -14,27 +16,38 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:in_app_update/in_app_update.dart';
 
+// NEW: FCM + Auth + RTDB
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+
 import 'localization/demo_localization.dart';
 import 'localization/language_constants.dart';
-
-import 'screens/main_screen.dart';
-import 'screens/welcome_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-  print('Firebase Initialized');
+
+  // iOS/macOS foreground notification display behavior
+  await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+
+  await SystemChrome.setPreferredOrientations(
+    <DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ],
+  );
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => GeneralProvider()),
-        // Add other providers here if necessary
       ],
       child: const MyApp(),
     ),
@@ -44,17 +57,16 @@ void main() async {
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
-  static void setLocale(BuildContext context, Locale newLocale) async {
-    _MyAppState? state = context.findAncestorStateOfType<_MyAppState>();
-    SharedPreferences sharedPreferences = await SharedPreferences.getInstance();
-    String? language = sharedPreferences.getString("Language");
-    print("Language from SharedPreferences: $language");
+  static Future<void> setLocale(BuildContext context, Locale newLocale) async {
+    final _MyAppState? state = context.findAncestorStateOfType<_MyAppState>();
+    final prefs = await SharedPreferences.getInstance();
+    final String? language = prefs.getString("Language");
+
     if (language == null || language.isEmpty) {
       state?.setLocale(newLocale);
-      await sharedPreferences.setString("Language", newLocale.languageCode);
-      print('New locale saved: ${newLocale.languageCode}');
+      await prefs.setString("Language", newLocale.languageCode);
     } else {
-      Locale updatedLocale = Locale(language, "SA");
+      final Locale updatedLocale = Locale(language, "SA");
       state?.setLocale(updatedLocale);
     }
   }
@@ -65,237 +77,248 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Locale? _locale;
-  late FirebaseAnalytics analytics;
-  bool _dialogIsShowing = false; // Flag to prevent multiple dialogs
+  late FirebaseAnalytics _analytics;
+  bool _dialogIsShowing = false;
+
+  // NEW: cancelable token listener
+  StreamSubscription<String>? _tokenSub;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    initializeFirebaseAnalytics();
-    loadLocale();
+    _initializeFirebaseAnalytics();
+    _loadLocale();
+    _initPushNotifications();
+
+    // Wire provider listeners after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<GeneralProvider>(context, listen: false);
 
-      // Listen to subscription expiration
+      // Subscription expired dialog
       provider.subscriptionExpiredStream.listen((_) {
-        if (!_dialogIsShowing) {
-          _dialogIsShowing = true; // Prevent multiple dialogs
-          print('Subscription expired. Showing dialog.');
+        if (_dialogIsShowing) return;
+        _dialogIsShowing = true;
 
-          showDialog(
-            context: navigatorKey.currentContext!,
-            builder: (context) => AlertDialog(
-              title: Text(
-                getTranslated(context, "Subscription Expired"),
-                style: TextStyle(
-                  color: Theme.of(context).primaryColor,
-                ),
-              ),
-              content: Text(
-                getTranslated(context,
-                    "Your subscription has expired. You have been reverted to the Star account."),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    setState(() {
-                      _dialogIsShowing = false;
-                    });
-                    print('Subscription expired dialog dismissed.');
-                  },
-                  child: Text(getTranslated(context, "OK")),
-                ),
-              ],
+        showDialog(
+          context: navigatorKey.currentContext!,
+          builder: (ctx) => AlertDialog(
+            title: Text(
+              getTranslated(ctx, "Subscription Expired"),
+              style: TextStyle(color: Theme.of(ctx).primaryColor),
             ),
-          ).then((_) {
-            setState(() {
-              _dialogIsShowing = false; // Reset the flag when dialog is closed
-            });
-            print('Subscription expired dialog closed.');
-          });
-        }
+            content: Text(
+              getTranslated(
+                ctx,
+                "Your subscription has expired. You have been reverted to the Star account.",
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  setState(() => _dialogIsShowing = false);
+                },
+                child: Text(getTranslated(ctx, "OK")),
+              ),
+            ],
+          ),
+        ).then((_) => setState(() => _dialogIsShowing = false));
       });
 
-      // Listen to post status changes
+      // Post status changes
       provider.postStatusChangeStream.listen((event) {
-        if (!_dialogIsShowing) {
-          _dialogIsShowing = true;
-          if (event.status == '1') {
-            showDialog(
-              context: navigatorKey.currentContext!,
-              builder: (context) => const SuccessDialog(
+        if (_dialogIsShowing) return;
+        _dialogIsShowing = true;
+
+        final Widget dialog = (event.status == '1')
+            ? const SuccessDialog(
                 text: "Post Added Successfully",
                 text1: "Your post has been approved and is now visible.",
-              ),
-            ).then((_) {
-              setState(() {
-                _dialogIsShowing = false;
-              });
-            });
-          } else if (event.status == '2') {
-            showDialog(
-              context: navigatorKey.currentContext!,
-              builder: (context) => const FailureDialog(
+              )
+            : const FailureDialog(
                 text: "Post Rejected",
                 text1: "Your post has been rejected and was not posted.",
-              ),
-            ).then((_) {
-              setState(() {
-                _dialogIsShowing = false;
-              });
-            });
-          }
-        }
+              );
+
+        showDialog(
+          context: navigatorKey.currentContext!,
+          builder: (ctx) => dialog,
+        ).then((_) => setState(() => _dialogIsShowing = false));
       });
 
-      // Existing chat request dialog logic remains unchanged
-      provider.subscriptionExpiredStream.listen((_) {
-        // Existing code...
-      });
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<GeneralProvider>(context, listen: false);
-      provider.postStatusChangeStream.listen((event) {
-        if (!_dialogIsShowing) {
-          _dialogIsShowing = true; // Prevent multiple dialogs
-          if (event.status == '1') {
-            showDialog(
-              context: navigatorKey.currentContext!,
-              builder: (context) => SuccessDialog(
-                text: "Post Added Successfully",
-                text1: "Your post has been approved and is now visible.",
-              ),
-            ).then((_) {
-              setState(() {
-                _dialogIsShowing = false;
-              });
-            });
-          } else if (event.status == '2') {
-            showDialog(
-              context: navigatorKey.currentContext!,
-              builder: (context) => FailureDialog(
-                text: "Post Rejected",
-                text1: "Your post has been rejected and was not posted.",
-              ),
-            ).then((_) {
-              setState(() {
-                _dialogIsShowing = false;
-              });
-            });
-          }
-        }
-      });
-
-      checkForUpdate(); // Check for updates after initialization
+      _checkForUpdate();
     });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _tokenSub?.cancel();
     super.dispose();
   }
 
-  void initializeFirebaseAnalytics() async {
-    analytics = FirebaseAnalytics.instance;
-    print('Firebase Analytics Initialized');
+  void _initializeFirebaseAnalytics() {
+    _analytics = FirebaseAnalytics.instance;
   }
 
-  void loadLocale() async {
-    SharedPreferences sharedPreferences = await SharedPreferences.getInstance();
-    String? language = sharedPreferences.getString("Language");
-    print("Loaded Locale: $language");
+  Future<void> _loadLocale() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? language = prefs.getString("Language");
 
     if (language != null && language.isNotEmpty) {
       setLocale(Locale(language, "SA"));
     } else {
       setLocale(const Locale("en", "US"));
-      await sharedPreferences.setString("Language", "en");
-      print('Default locale set to English and saved.');
+      await prefs.setString("Language", "en");
     }
   }
 
   void setLocale(Locale locale) {
-    setState(() {
-      _locale = locale;
-    });
+    setState(() => _locale = locale);
   }
 
-  void checkForUpdate() async {
+  Future<void> _checkForUpdate() async {
     try {
-      final updateInfo = await InAppUpdate.checkForUpdate();
-      if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable) {
-        // Immediate update
-        InAppUpdate.performImmediateUpdate().catchError((e) {
-          print("Error during update: $e");
-        });
+      final info = await InAppUpdate.checkForUpdate();
+      if (info.updateAvailability == UpdateAvailability.updateAvailable) {
+        await InAppUpdate.performImmediateUpdate();
       }
     } catch (e) {
-      print("Failed to check for update: $e");
+      // log only
+      debugPrint("In-app update check error: $e");
     }
+  }
+
+  /// ======== NEW: Notifications bootstrap ========
+  Future<void> _initPushNotifications() async {
+    try {
+      final messaging = FirebaseMessaging.instance;
+
+      // Request permission (iOS/macOS + Android 13+)
+      final settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        announcement: false,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+      );
+      debugPrint('Notification authorization: ${settings.authorizationStatus}');
+
+      // Ensure banner while in foreground (Apple)
+      await messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      // Save current token
+      await _saveCurrentToken();
+
+      // Keep token fresh
+      _tokenSub =
+          FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
+        debugPrint('FCM token refreshed: $token');
+        await _persistToken(token);
+      });
+
+      // Optional: foreground messages
+      FirebaseMessaging.onMessage.listen((RemoteMessage m) {
+        debugPrint(
+            'Foreground message: ${m.notification?.title} | ${m.notification?.body}');
+      });
+    } catch (e) {
+      debugPrint('Push init failed: $e');
+    }
+  }
+
+  Future<void> _saveCurrentToken() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        await _persistToken(token);
+      }
+    } catch (e) {
+      debugPrint('Get token error: $e');
+    }
+  }
+
+  Future<void> _persistToken(String token) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      // Not signed in yet; you can call _saveCurrentToken() after login too.
+      return;
+    }
+
+    // Legacy single token path (kept for compatibility with your codebase)
+    await FirebaseDatabase.instance.ref('App/User/$uid/Token').set(token);
+
+    // Device-scoped path for multi-device support
+    final ref = FirebaseDatabase.instance.ref('App/User/$uid/Tokens/$token');
+    await ref.update(<String, dynamic>{
+      'createdAt': ServerValue.timestamp,
+      'platform': 'flutter',
+      'active': true,
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     if (_locale == null) {
-      // While loading locale, show a loading indicator
       return const MaterialApp(
         debugShowCheckedModeBanner: false,
         home: Scaffold(
           body: Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-            ),
+            child: CircularProgressIndicator(),
           ),
         ),
       );
-    } else {
-      return Sizer(
-        builder: (context, orientation, deviceType) {
-          return Directionality(
-            textDirection: _locale?.languageCode == 'ar'
-                ? TextDirection.rtl
-                : TextDirection.ltr,
-            child: Consumer<GeneralProvider>(
-              builder: (context, provider, child) {
-                return MaterialApp(
-                  debugShowCheckedModeBanner: false,
-                  title: "Daimond Host Provider",
-                  navigatorKey: navigatorKey, // Attach the navigator key here
-                  theme: provider.getTheme(context),
-                  locale: _locale,
-                  supportedLocales: const [
-                    Locale("en", "US"),
-                    Locale("ar", "SA"),
-                  ],
-                  localizationsDelegates: const [
-                    DemoLocalization.delegate,
-                    GlobalMaterialLocalizations.delegate,
-                    GlobalWidgetsLocalizations.delegate,
-                    GlobalCupertinoLocalizations.delegate,
-                  ],
-                  localeResolutionCallback: (locale, supportedLocales) {
-                    for (var supportedLocale in supportedLocales) {
-                      if (supportedLocale.languageCode ==
-                              locale?.languageCode &&
-                          supportedLocale.countryCode == locale?.countryCode) {
-                        return supportedLocale;
-                      }
-                    }
-                    return supportedLocales.first;
-                  },
-                  navigatorObservers: [
-                    FirebaseAnalyticsObserver(analytics: analytics),
-                  ],
-                  home: const SplashScreen(),
-                );
-              },
-            ),
-          );
-        },
-      );
     }
+
+    return Sizer(
+      builder: (context, orientation, deviceType) {
+        return Directionality(
+          textDirection: _locale!.languageCode == 'ar'
+              ? TextDirection.rtl
+              : TextDirection.ltr,
+          child: Consumer<GeneralProvider>(
+            builder: (context, provider, child) {
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                title: "Daimond Host Provider",
+                navigatorKey: navigatorKey,
+                theme: provider.getTheme(context),
+                locale: _locale,
+                supportedLocales: const [
+                  Locale("en", "US"),
+                  Locale("ar", "SA"),
+                ],
+                localizationsDelegates: const [
+                  DemoLocalization.delegate,
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                localeResolutionCallback: (locale, supportedLocales) {
+                  for (final supported in supportedLocales) {
+                    if (supported.languageCode == locale?.languageCode &&
+                        supported.countryCode == locale?.countryCode) {
+                      return supported;
+                    }
+                  }
+                  return supportedLocales.first;
+                },
+                navigatorObservers: [
+                  FirebaseAnalyticsObserver(analytics: _analytics),
+                ],
+                home: const SplashScreen(),
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 }

@@ -24,6 +24,11 @@ class _EditRestaurantTypeVisibilityState
     extends State<EditRestaurantTypeVisibility> {
   final List<Map<String, dynamic>> restaurantOptions = [
     {'label': 'Popular restaurant', 'labelAr': 'مطعم شعبي', 'value': false},
+    {
+      'label': 'International Restaurant',
+      'labelAr': 'مطعم عالمي',
+      'value': false
+    },
     {'label': 'Indian Restaurant', 'labelAr': 'مطعم هندي', 'value': false},
     {'label': 'Italian', 'labelAr': 'إيطالي', 'value': false},
     {

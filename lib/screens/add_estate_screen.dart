@@ -37,6 +37,10 @@ import 'package:intl/intl.dart';
 // 🆕 Metro picker import
 import '../widgets/riyadh_metro_picker.dart';
 
+import 'dart:async';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+
 class AddEstatesScreen extends StatefulWidget {
   final String userType;
 
@@ -85,6 +89,11 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   final GlobalKey _keyNameEnField = GlobalKey();
   final GlobalKey _keyBranchEnField = GlobalKey();
   final GlobalKey _keyBranchArField = GlobalKey();
+  // ===== Draft persistence =====
+  static const String _kDraftKey = 'add_estate_draft_v1';
+  Timer? _saveTimer;
+  final List<TextEditingController> _textCtrls = [];
+  bool _restoringDraft = false;
 
   void _scrollTo(GlobalKey key) {
     final ctx = key.currentContext;
@@ -233,9 +242,342 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
 
   @override
   void dispose() {
+    // Cancel any pending debounce timer
+    _saveTimer?.cancel();
+
+    // Remove listeners from all wired controllers
+    for (final c in _textCtrls) {
+      c.removeListener(_saveDraftDebounced);
+    }
+
+    // Dispose only the controllers you created in this screen
     _dateOfPhotographyController.dispose();
     _timeOfPhotographyController.dispose();
+
     super.dispose();
+  }
+
+  void _wireDraftAutosave() {
+    // Register all text controllers you want autosaved
+    _textCtrls.clear();
+    _textCtrls.addAll([
+      nameController,
+      bioController,
+      enNameController,
+      enBioController,
+      enBranchController,
+      arBranchController,
+      menuLinkController,
+      phoneNumberController,
+      taxNumberController,
+      estateNumberController,
+      singleController,
+      doubleController,
+      suiteController,
+      familyController,
+      grandSuiteController,
+      grandSuiteControllerAr,
+      businessSuiteController,
+      businessSuiteControllerAr,
+      singleControllerBioAr,
+      doubleControllerBioAr,
+      suiteControllerBioAr,
+      familyControllerBioAr,
+      singleControllerBioEn,
+      doubleControllerBioEn,
+      suiteControllerBioEn,
+      familyControllerBioEn,
+      grandSuiteControllerBioEn,
+      grandSuiteControllerBioAr,
+      businessSuiteControllerBioEn,
+      businessSuiteControllerBioAr,
+      _dateOfPhotographyController,
+      _timeOfPhotographyController,
+      facilityNameController,
+      facilityNameArController,
+      facilityPriceController,
+    ]);
+
+    for (final c in _textCtrls) {
+      c.addListener(_saveDraftDebounced);
+    }
+  }
+
+  void _saveDraftDebounced() {
+    if (_restoringDraft) return;
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 350), _saveDraftImmediate);
+  }
+
+  Future<void> _saveDraftImmediate() async {
+    if (_restoringDraft) return;
+    final prefs = await SharedPreferences.getInstance();
+    final map = _packDraft();
+    await prefs.setString(_kDraftKey, jsonEncode(map));
+  }
+
+  Map<String, dynamic> _packDraft() {
+    // NOTE: Only include serializable values (no Widgets, Keys, etc.)
+    return {
+      // Basic info
+      'userType': widget.userType,
+      'nameAr': nameController.text,
+      'bioAr': bioController.text,
+      'nameEn': enNameController.text,
+      'bioEn': enBioController.text,
+      'branchEn': enBranchController.text,
+      'branchAr': arBranchController.text,
+
+      // Legal PDFs
+      'facilityPdfUrl': facilityPdfUrl ?? '',
+      'taxPdfUrl': taxPdfUrl ?? '',
+      'isUploadingFacility': isUploadingFacility,
+      'isUploadingTax': isUploadingTax,
+
+      // Photographer
+      'dateOfPhotography': _dateOfPhotographyController.text,
+      'timeOfPhotography': _timeOfPhotographyController.text,
+      'dayOfPhotography': _dayOfPhotography ?? '',
+
+      // Menu & phone
+      'menuLink': menuLinkController.text,
+      'estatePhone': phoneNumberController.text,
+
+      // Location
+      'country': countryValue,
+      'state': stateValue,
+      'city': cityValue,
+
+      // Valet, Kids, Smoking
+      'hasValet': hasValet,
+      'valetWithFees': valetWithFees,
+      'hasKidsArea': hasKidsArea,
+      'isSmokingAllowed': checkIsSmokingAllowed,
+
+      // Hotel amenities
+      'hasSwimmingPool': hasSwimmingPool,
+      'hasJacuzzi': hasJacuzzi,
+      'hasBarber': hasBarber,
+      'hasMassage': hasMassage,
+      'hasGym': hasGym,
+
+      // Hotel room toggles + prices/bios
+      'single': single,
+      'double': double,
+      'suite': suite,
+      'family': family,
+      'grandSuite': grandSuite,
+      'businessSuite': businessSuite,
+
+      'singlePrice': singleController.text,
+      'doublePrice': doubleController.text,
+      'suitePrice': suiteController.text,
+      'familyPrice': familyController.text,
+      'grandSuitePrice': grandSuiteController.text,
+      'grandSuitePriceAr': grandSuiteControllerAr.text,
+      'businessSuitePrice': businessSuiteController.text,
+      'businessSuitePriceAr': businessSuiteControllerAr.text,
+
+      'singleBioAr': singleControllerBioAr.text,
+      'doubleBioAr': doubleControllerBioAr.text,
+      'suiteBioAr': suiteControllerBioAr.text,
+      'familyBioAr': familyControllerBioAr.text,
+      'singleBioEn': singleControllerBioEn.text,
+      'doubleBioEn': doubleControllerBioEn.text,
+      'suiteBioEn': suiteControllerBioEn.text,
+      'familyBioEn': familyControllerBioEn.text,
+      'grandSuiteBioEn': grandSuiteControllerBioEn.text,
+      'grandSuiteBioAr': grandSuiteControllerBioAr.text,
+      'businessSuiteBioEn': businessSuiteControllerBioEn.text,
+      'businessSuiteBioAr': businessSuiteControllerBioAr.text,
+
+      // Lounge prices (hotel)
+      'breakfastPrice': breakfastPrice,
+      'launchPrice': launchPrice,
+      'dinnerPrice': dinnerPrice,
+
+      // Lists (Restaurant/Coffee)
+      'selectedRestaurantTypes': selectedRestaurantTypes,
+      'selectedEntries': selectedEntries,
+      'selectedSessions': selectedSessions,
+      'selectedAdditionals': selectedAdditionals,
+      'listMusic': listMusic,
+
+      // Music flags
+      'checkMusic': checkMusic,
+      'haveMusic': haveMusic,
+      'haveSinger': haveSinger,
+      'haveDJ': haveDJ,
+      'haveOud': haveOud,
+
+      // Facilities list (hotel optional)
+      'facilityList': facilityList
+          .map((f) => {
+                'id': f.id,
+                'name': f.name,
+                'nameEn': f.nameEn,
+                'price': f.price,
+              })
+          .toList(),
+
+      // Floor plan
+      'layoutId': _layoutId,
+
+      // Metro
+      'metroCity': ((cityValue ?? '').toLowerCase().trim()),
+      'metroLines': _metroCtrl.chosenLines,
+      'metroStationsByLine': _metroCtrl.chosenStationsByLine,
+    };
+  }
+
+  Future<void> _loadDraft() async {
+    _restoringDraft = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kDraftKey);
+      if (raw == null || raw.isEmpty) return;
+
+      final Map<String, dynamic> map = jsonDecode(raw);
+
+      // If draft was created for another userType, ignore it
+      if ((map['userType'] ?? widget.userType) != widget.userType) return;
+
+      _applyDraft(map);
+    } finally {
+      _restoringDraft = false;
+    }
+  }
+
+  void _applyDraft(Map<String, dynamic> m) {
+    // Texts
+    nameController.text = (m['nameAr'] ?? '');
+    bioController.text = (m['bioAr'] ?? '');
+    enNameController.text = (m['nameEn'] ?? '');
+    enBioController.text = (m['bioEn'] ?? '');
+    enBranchController.text = (m['branchEn'] ?? '');
+    arBranchController.text = (m['branchAr'] ?? '');
+
+    // PDFs
+    facilityPdfUrl = (m['facilityPdfUrl'] ?? '') as String?;
+    taxPdfUrl = (m['taxPdfUrl'] ?? '') as String?;
+
+    // Photographer
+    _dateOfPhotographyController.text = (m['dateOfPhotography'] ?? '');
+    _timeOfPhotographyController.text = (m['timeOfPhotography'] ?? '');
+    _dayOfPhotography = (m['dayOfPhotography'] ?? '');
+
+    // Menu & phone
+    menuLinkController.text = (m['menuLink'] ?? '');
+    phoneNumberController.text = (m['estatePhone'] ?? '');
+
+    // Location
+    countryValue = m['country'];
+    stateValue = m['state'];
+    cityValue = m['city'];
+
+    // Valet / Kids / Smoking
+    hasValet = m['hasValet'] ?? false;
+    valetWithFees = m['valetWithFees'] ?? false;
+    hasKidsArea = m['hasKidsArea'] ?? false;
+    checkIsSmokingAllowed = m['isSmokingAllowed'] ?? false;
+
+    // Hotel amenities
+    hasSwimmingPool = m['hasSwimmingPool'] ?? false;
+    hasJacuzzi = m['hasJacuzzi'] ?? false;
+    hasBarber = m['hasBarber'] ?? false;
+    hasMassage = m['hasMassage'] ?? false;
+    hasGym = m['hasGym'] ?? false;
+
+    // Room toggles & data
+    single = m['single'] ?? false;
+    double = m['double'] ?? false;
+    suite = m['suite'] ?? false;
+    family = m['family'] ?? false;
+    grandSuite = m['grandSuite'] ?? false;
+    businessSuite = m['businessSuite'] ?? false;
+
+    singleController.text = (m['singlePrice'] ?? '');
+    doubleController.text = (m['doublePrice'] ?? '');
+    suiteController.text = (m['suitePrice'] ?? '');
+    familyController.text = (m['familyPrice'] ?? '');
+    grandSuiteController.text = (m['grandSuitePrice'] ?? '');
+    grandSuiteControllerAr.text = (m['grandSuitePriceAr'] ?? '');
+    businessSuiteController.text = (m['businessSuitePrice'] ?? '');
+    businessSuiteControllerAr.text = (m['businessSuitePriceAr'] ?? '');
+
+    singleControllerBioAr.text = (m['singleBioAr'] ?? '');
+    doubleControllerBioAr.text = (m['doubleBioAr'] ?? '');
+    suiteControllerBioAr.text = (m['suiteBioAr'] ?? '');
+    familyControllerBioAr.text = (m['familyBioAr'] ?? '');
+    singleControllerBioEn.text = (m['singleBioEn'] ?? '');
+    doubleControllerBioEn.text = (m['doubleBioEn'] ?? '');
+    suiteControllerBioEn.text = (m['suiteBioEn'] ?? '');
+    familyControllerBioEn.text = (m['familyBioEn'] ?? '');
+    grandSuiteControllerBioEn.text = (m['grandSuiteBioEn'] ?? '');
+    grandSuiteControllerBioAr.text = (m['grandSuiteBioAr'] ?? '');
+    businessSuiteControllerBioEn.text = (m['businessSuiteBioEn'] ?? '');
+    businessSuiteControllerBioAr.text = (m['businessSuiteBioAr'] ?? '');
+
+    breakfastPrice = (m['breakfastPrice'] ?? '');
+    launchPrice = (m['launchPrice'] ?? '');
+    dinnerPrice = (m['dinnerPrice'] ?? '');
+
+    // Lists
+    selectedRestaurantTypes =
+        List<String>.from(m['selectedRestaurantTypes'] ?? const []);
+    selectedEntries = List<String>.from(m['selectedEntries'] ?? const []);
+    selectedSessions = List<String>.from(m['selectedSessions'] ?? const []);
+    selectedAdditionals =
+        List<String>.from(m['selectedAdditionals'] ?? const []);
+    listMusic = List<String>.from(m['listMusic'] ?? const []);
+
+    // Music flags
+    checkMusic = m['checkMusic'] ?? false;
+    haveMusic = m['haveMusic'] ?? false;
+    haveSinger = m['haveSinger'] ?? false;
+    haveDJ = m['haveDJ'] ?? false;
+    haveOud = m['haveOud'] ?? false;
+
+    // Facilities list
+    facilityList.clear();
+    final facilities = (m['facilityList'] ?? []) as List<dynamic>;
+    for (final f in facilities) {
+      facilityList.add(
+        Additional(
+          id: f['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+          name: f['name'] ?? '',
+          nameEn: f['nameEn'] ?? '',
+          price: f['price'] ?? '',
+          isBool: false,
+          color: Colors.white,
+        ),
+      );
+    }
+
+    // Floor plan
+    _layoutId = (m['layoutId'] ?? '') == '' ? null : m['layoutId'];
+
+    // Metro restore (best-effort)
+    try {
+      final lines = List<String>.from(m['metroLines'] ?? const []);
+      final stationsByLine = Map<String, dynamic>.from(
+          m['metroStationsByLine'] ?? const <String, dynamic>{});
+      final casted = stationsByLine.map(
+        (k, v) => MapEntry(k, List<String>.from(v ?? const [])),
+      );
+
+      // If your MetroSelectionController exposes a restore API, call it here:
+      // Example (implement this in your controller if not present):
+      // _metroCtrl.restoreSelection(lines, casted);
+    } catch (_) {}
+
+    // Refresh UI
+    setState(() {});
+  }
+
+  Future<void> _clearDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kDraftKey);
   }
 
   void _onRestaurantTypeCheckboxChanged(bool value, String type) {
@@ -246,6 +588,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
         selectedRestaurantTypes.remove(type);
       }
     });
+    _saveDraftDebounced(); // NEW
   }
 
   bool _hasPartialMetroSelection() {
@@ -285,6 +628,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
         selectedAdditionals.remove(type);
       }
     });
+    _saveDraftDebounced();
   }
 
   void _onSessionCheckboxChanged(bool value, String type) {
@@ -295,6 +639,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
         selectedSessions.remove(type);
       }
     });
+    _saveDraftDebounced();
   }
 
   void _onCheckboxChanged(bool value, String type) {
@@ -305,6 +650,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
         selectedEntries.remove(type);
       }
     });
+    _saveDraftDebounced();
   }
 
   // ===== Validation (combined) =====
@@ -392,11 +738,18 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Prepare any server-side data you already load
     backendService.getIdEstate().then((id) {
-      setState(() {
-        idEstate = id;
-      });
+      setState(() => idEstate = id);
     });
+
+    // Wire all text controllers for autosave
+    _wireDraftAutosave();
+
+    // Try to restore an existing draft (if any)
+    // Do not await here: build should not block
+    _loadDraft();
   }
 
   Future<String?> getTypeAccount(String userId) async {
@@ -640,6 +993,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                   setState(() {
                                     facilityPdfUrl = pdfUrl;
                                   });
+                                  await _saveDraftImmediate(); // <-- NEW
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(getTranslated(context,
@@ -779,6 +1133,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                   setState(() {
                                     taxPdfUrl = pdfUrl;
                                   });
+                                  await _saveDraftImmediate(); // <-- NEW
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(getTranslated(context,
@@ -1386,6 +1741,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                               hasValet = value ?? false;
                               valetWithFees = false;
                             });
+                            _saveDraftDebounced();
                           },
                           activeColor: kPurpleColor,
                           controlAffinity: ListTileControlAffinity.leading,
@@ -1403,6 +1759,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                   setState(() {
                                     valetWithFees = value ?? false;
                                   });
+                                  _saveDraftDebounced();
                                 },
                                 activeColor: kDeepPurpleColor,
                                 controlAffinity:
@@ -1454,6 +1811,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                               setState(() {
                                 hasKidsArea = value ?? false;
                               });
+                              _saveDraftDebounced();
                             },
                             activeColor: kDeepPurpleColor,
                             controlAffinity: ListTileControlAffinity.leading,
@@ -1484,6 +1842,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                               setState(() {
                                 checkIsSmokingAllowed = value ?? false;
                               });
+                              _saveDraftDebounced();
                             },
                             activeColor: kDeepPurpleColor,
                             controlAffinity: ListTileControlAffinity.leading,
@@ -1506,6 +1865,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                               setState(() {
                                 checkIsSmokingAllowed = value ?? false;
                               });
+                              _saveDraftDebounced();
                             },
                             activeColor: kDeepPurpleColor,
                             controlAffinity: ListTileControlAffinity.leading,
@@ -1539,6 +1899,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                               setState(() {
                                 hasSwimmingPool = value ?? false;
                               });
+                              _saveDraftDebounced();
                             },
                             activeColor: kDeepPurpleColor,
                             controlAffinity: ListTileControlAffinity.leading,
@@ -1551,6 +1912,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                               setState(() {
                                 hasJacuzzi = value ?? false;
                               });
+                              _saveDraftDebounced();
                             },
                             activeColor: kDeepPurpleColor,
                             controlAffinity: ListTileControlAffinity.leading,
@@ -1563,6 +1925,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                               setState(() {
                                 hasBarber = value ?? false;
                               });
+                              _saveDraftDebounced();
                             },
                             activeColor: kDeepPurpleColor,
                             controlAffinity: ListTileControlAffinity.leading,
@@ -1575,6 +1938,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                               setState(() {
                                 hasMassage = value ?? false;
                               });
+                              _saveDraftDebounced();
                             },
                             activeColor: kDeepPurpleColor,
                             controlAffinity: ListTileControlAffinity.leading,
@@ -1587,6 +1951,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                               setState(() {
                                 hasGym = value ?? false;
                               });
+                              _saveDraftDebounced();
                             },
                             activeColor: kDeepPurpleColor,
                             controlAffinity: ListTileControlAffinity.leading,
@@ -1610,16 +1975,19 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                       setState(() {
                         countryValue = value;
                       });
+                      _saveDraftDebounced();
                     },
                     onStateChanged: (value) {
                       setState(() {
                         stateValue = value;
                       });
+                      _saveDraftDebounced();
                     },
                     onCityChanged: (value) {
                       setState(() {
                         cityValue = value;
                       });
+                      _saveDraftDebounced();
                     },
                   ),
 
@@ -2093,6 +2461,9 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                                 .pop(); // dismiss loading dialog
                           }
                           if (!mounted) return;
+
+// Remove the saved draft because we finished successfully
+                          await _clearDraft(); // <-- NEW
 
                           Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(
