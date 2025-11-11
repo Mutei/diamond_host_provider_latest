@@ -1,8 +1,8 @@
-import 'package:daimond_host_provider/localization/language_constants.dart';
+import '../localization/language_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:intl_phone_field/phone_number.dart';
-import '../constants/colors.dart'; // Adjust the path as needed
+import '../constants/colors.dart';
 
 class ReusedPhoneNumberField extends StatelessWidget {
   final Function(String) onPhoneNumberChanged;

@@ -306,6 +306,11 @@ class _MainScreenContentState extends State<MainScreenContent>
             'nameEn': estateData['NameEn'] ?? 'Unknown',
             'typeAccount': estateData['TypeAccount'] ?? 'Unknown',
             'nameAr': estateData['NameAr'] ?? 'غير معروف',
+
+            // 👇👇 ADD THESE TWO
+            'branchEn': estateData['BranchEn'] ?? '',
+            'branchAr': estateData['BranchAr'] ?? '',
+
             'rating': 0.0,
             'fee': estateData['Fee'] ?? 'Free',
             'time': estateData['Time'] ?? '20 min',
@@ -399,18 +404,29 @@ class _MainScreenContentState extends State<MainScreenContent>
   void _prepareEstateOptions() {
     final isArabic = Localizations.localeOf(context).languageCode == 'ar';
 
-    final opts = estates
-        .map((e) => _EstateOption(
-              estateId: e['id'],
-              display: isArabic
-                  ? ((e['nameAr']?.toString().trim().isNotEmpty ?? false)
-                      ? e['nameAr']
-                      : (e['nameEn'] ?? e['id']))
-                  : ((e['nameEn']?.toString().trim().isNotEmpty ?? false)
-                      ? e['nameEn']
-                      : (e['nameAr'] ?? e['id'])),
-            ))
-        .toList()
+    final opts = estates.map((e) {
+      // pick name based on locale
+      final name = isArabic
+          ? ((e['nameAr']?.toString().trim().isNotEmpty ?? false)
+              ? e['nameAr'].toString().trim()
+              : (e['nameEn']?.toString().trim() ?? e['id']))
+          : ((e['nameEn']?.toString().trim().isNotEmpty ?? false)
+              ? e['nameEn'].toString().trim()
+              : (e['nameAr']?.toString().trim() ?? e['id']));
+
+      // pick branch based on locale
+      final branch = isArabic
+          ? (e['branchAr']?.toString().trim() ?? '')
+          : (e['branchEn']?.toString().trim() ?? '');
+
+      // final display: Name OR Name - Branch
+      final display = (branch.isNotEmpty) ? '$name - $branch' : name;
+
+      return _EstateOption(
+        estateId: e['id'],
+        display: display,
+      );
+    }).toList()
       ..sort(
           (a, b) => a.display.toLowerCase().compareTo(b.display.toLowerCase()));
 
@@ -975,9 +991,13 @@ class _MainScreenContentState extends State<MainScreenContent>
                                 ],
                               ),
                               const SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               if ((_allPin?.isNotEmpty ?? false) ||
                                   _estatePins.isNotEmpty)
-                                Row(
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     Chip(
                                       label: Text(
@@ -987,9 +1007,9 @@ class _MainScreenContentState extends State<MainScreenContent>
                                             : (_scopeEstateName ??
                                                 getTranslated(context,
                                                     "Choose control scope")),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
                                     TextButton(
                                       onPressed: _openScopePicker,
                                       child: Text(getTranslated(
@@ -1056,10 +1076,12 @@ class _MainScreenContentState extends State<MainScreenContent>
                                         _navigateToEstateProfile(estate),
                                     child: EstateCard(
                                       nameEn: estate['nameEn'],
-                                      estateId: estate['id'],
                                       nameAr: estate['nameAr'],
+                                      estateId: estate['id'],
                                       rating: estate['rating'],
                                       typeAccount: typeAccount,
+                                      branchEn: estate['branchEn'], // 👈 new
+                                      branchAr: estate['branchAr'], // 👈 new
                                     ),
                                   );
                                 },
@@ -1105,6 +1127,8 @@ class _MainScreenContentState extends State<MainScreenContent>
           valetWithFees: estate['ValetWithFees'] ?? '',
           hasValet: estate['HasValet'] ?? '',
           lstMusic: estate['Lstmusic'] ?? '',
+          branchEn: estate['branchEn'],
+          branchAr: estate['branchAr'],
         ),
       ),
     );
@@ -1168,6 +1192,7 @@ class _ScopePickerDialogState extends State<_ScopePickerDialog> {
           children: [
             DropdownButtonFormField<String>(
               value: _selected,
+              isExpanded: true, // 👈 important: let it use full width
               decoration: InputDecoration(
                 labelText: t("Estate"),
                 border: const OutlineInputBorder(),
@@ -1176,14 +1201,21 @@ class _ScopePickerDialogState extends State<_ScopePickerDialog> {
                 if (widget.allEnabled)
                   DropdownMenuItem(
                     value: 'ALL',
-                    child: Text(allEstatesLabel),
+                    child: Text(
+                      t("-- All estates --"),
+                      overflow: TextOverflow.ellipsis, // 👈 just in case
+                    ),
                   ),
                 ...widget.estates.map(
                   (e) => DropdownMenuItem(
                     value: e.estateId,
-                    // `e.display` is a proper name pulled from DB; we don't auto-translate it.
-                    // It will render as-is, while the UI chrome (labels) are localized.
-                    child: Text(e.display),
+                    child: Text(
+                      e.display,
+                      overflow: TextOverflow
+                          .ellipsis, // 👈 long “name - branch” won’t overflow
+                      maxLines: 1,
+                      softWrap: false,
+                    ),
                   ),
                 ),
               ],

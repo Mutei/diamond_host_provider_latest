@@ -17,6 +17,10 @@ class EstateCard extends StatelessWidget {
   final double rating;
   final String typeAccount;
 
+  // 👇 NEW
+  final String? branchEn;
+  final String? branchAr;
+
   const EstateCard({
     super.key,
     required this.nameEn,
@@ -24,6 +28,8 @@ class EstateCard extends StatelessWidget {
     required this.estateId,
     required this.rating,
     required this.typeAccount,
+    this.branchEn,
+    this.branchAr,
   });
 
   Future<File> _getCachedImage(String estateId) async {
@@ -74,8 +80,13 @@ class EstateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayName =
-        Localizations.localeOf(context).languageCode == 'ar' ? nameAr : nameEn;
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+
+    // 👇 build "Name - Branch" depending on locale
+    final bn = isArabic ? (branchAr?.trim() ?? '') : (branchEn?.trim() ?? '');
+
+    final baseName = isArabic ? nameAr : nameEn;
+    final displayName = (bn.isNotEmpty) ? '$baseName - $bn' : baseName;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
@@ -144,6 +155,7 @@ class EstateCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
+                      // 👇 keeps it from overflowing
                       Expanded(
                         child: Text(
                           displayName,
@@ -176,6 +188,7 @@ class EstateCard extends StatelessWidget {
                             ),
                           ),
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
                                 getTranslated(

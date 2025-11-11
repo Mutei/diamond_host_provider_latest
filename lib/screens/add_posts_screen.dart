@@ -43,14 +43,13 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
   final ImagePicker _picker = ImagePicker();
 
-  String? _selectedEstate; // estate key (id under App/Estate/<Type>/<id>)
+  String? _selectedEstate; // node key under App/Estate/<type>/<nodeKey>
   List<Map<dynamic, dynamic>> _userEstates = [];
   String userType = "2";
   String? typeAccount;
 
-  // Scope: if this device is restricted to a single estate, enforce it here
-  String?
-      _scopedEstateId; // the IDEstate (not the node key) we’re allowed to post for
+  // scope from token
+  String? _scopedEstateId; // IDEstate
   bool _lockToScopedEstate = false;
 
   bool _isLoading = false;
@@ -62,6 +61,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       showCustomLoadingDialog(context);
     });
+
     if (widget.post != null) {
       _postId = widget.post!["postId"]?.toString() ?? '';
       _titleController.text = (widget.post!["Description"] ?? '').toString();
@@ -71,6 +71,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
       _existingImageUrls = List<String>.from(widget.post!["ImageUrls"] ?? []);
       _existingVideoUrls = List<String>.from(widget.post!["VideoUrls"] ?? []);
     }
+
     _initializeData();
   }
 
@@ -98,8 +99,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
     if (snap.exists) setState(() => typeAccount = snap.value.toString());
   }
 
-  /// Read device scope from App/User/<uid>/Tokens/<token>/scope
-  /// If scope.type == 'estate', only allow posting for that single estate.
+  /// read token scope
   Future<void> _loadDeviceScope() async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -113,20 +113,20 @@ class _AddPostScreenState extends State<AddPostScreen> {
         final type = snap.child('type').value?.toString();
         final estId = snap.child('estateId').value?.toString();
         if (type == 'estate' && estId != null && estId.isNotEmpty) {
-          _scopedEstateId = estId; // this is IDEstate
+          _scopedEstateId = estId;
           _lockToScopedEstate = true;
         }
       }
     } catch (_) {}
   }
 
-  /// Fetch accepted estates owned by the user.
-  /// If device is estate-scoped, include **only that estate**.
+  /// fetch user estates (accepted)
   Future<void> _fetchUserEstates() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     final snap = await FirebaseDatabase.instance.ref('App/Estate').once();
     final data = snap.snapshot.value as Map<dynamic, dynamic>?;
+
     if (data == null) return;
 
     final estates = <Map<dynamic, dynamic>>[];
@@ -136,16 +136,15 @@ class _AddPostScreenState extends State<AddPostScreen> {
           if (value != null &&
               value['IDUser'] == user.uid &&
               value['IsAccepted'] == "2") {
-            // IDEstate stored in booking/posts; nodeKey is the DB key under /Estate/<type>/
             final ide = value['IDEstate']?.toString();
-            // If scoped to a single estate, keep only that IDEstate
+            // if device is scoped -> only that IDEstate
             if (_scopedEstateId != null && ide != _scopedEstateId) return;
 
             estates.add({
-              'type': estateType, // Coffee / Hottel / Restaurant
-              'data': value, // full estate map
-              'id': nodeKey, // node key under Estate/<type>/
-              'IDEstate': ide, // the public IDEstate used across app
+              'type': estateType,
+              'data': value,
+              'id': nodeKey,
+              'IDEstate': ide,
               'NameEn': value['NameEn']?.toString() ?? '',
             });
           }
@@ -153,15 +152,12 @@ class _AddPostScreenState extends State<AddPostScreen> {
       }
     });
 
-    // If device is scoped but we didn’t find that estate (e.g., not accepted),
-    // keep list empty so user can’t post.
     setState(() {
       _userEstates = estates;
 
-      // If editing an existing post, don't override selection.
+      // if creating, preselect
       if (widget.post == null) {
         if (_lockToScopedEstate && _scopedEstateId != null) {
-          // find the entry matching IDEstate == scoped id
           final found = estates.firstWhere(
             (e) => e['IDEstate'] == _scopedEstateId,
             orElse: () => {},
@@ -216,6 +212,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         .equalTo(user.uid)
         .once();
     final data = snap.snapshot.value as Map<dynamic, dynamic>?;
+
     int monthlyCount = 0;
     if (data != null) {
       final cutoff = DateTime.now().subtract(const Duration(days: 30));
@@ -229,12 +226,14 @@ class _AddPostScreenState extends State<AddPostScreen> {
         }
       });
     }
+
     int allowed = 0;
     if (userType == '1' && typeAccount == '2') allowed = 4;
     if (userType == '1' && typeAccount == '3') allowed = 10;
     if (userType == '2' && typeAccount == '1') allowed = 1;
     if (userType == '2' && typeAccount == '2') allowed = 4;
     if (userType == '2' && typeAccount == '3') allowed = 8;
+
     if (allowed > 0 && monthlyCount >= allowed) {
       _showPostLimitAlert(allowed, typeAccount ?? '');
       return false;
@@ -243,11 +242,11 @@ class _AddPostScreenState extends State<AddPostScreen> {
   }
 
   Future<void> _savePost() async {
-    // 1) Super-user restriction (kept as in your original)
+    // 1) super-user restriction
     if (typeAccount == "1" && _superUserId != 'NUiwMiP03lWcPZSYAUidWnNRkRz2') {
       showDialog(
         context: context,
-        builder: (_) => FailureDialog(
+        builder: (_) => const FailureDialog(
           text: "Restricted",
           text1: "Your account type does not allow adding posts.",
         ),
@@ -255,7 +254,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
       return;
     }
 
-    // 2) Validate form + estate selection
+    // 2) validate form
     if (!_formKey.currentState!.validate() ||
         (userType != "1" && _selectedEstate == null)) {
       return;
@@ -272,10 +271,11 @@ class _AddPostScreenState extends State<AddPostScreen> {
       );
       return;
     }
+
     final userId = user.uid;
     final isSuperUser = userId == _superUserId;
 
-    // 3) Enforce device scope: if scoped to estate X, only allow posting for that estate
+    // 3) enforce scope
     if (_lockToScopedEstate && _scopedEstateId != null) {
       final selected = _userEstates.firstWhere(
         (e) => e['id'] == _selectedEstate,
@@ -296,7 +296,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
       }
     }
 
-    // 4) Post-limit check for non-super-users
+    // 4) post-limit
     if (!isSuperUser && !await _canAddMorePosts()) {
       return;
     }
@@ -307,7 +307,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
     });
 
     try {
-      // 5) Fetch user profile image URL
+      // 5) profile
       String? profileImageUrl;
       final userSnap =
           await FirebaseDatabase.instance.ref("App/User/$userId").get();
@@ -316,7 +316,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         profileImageUrl = userData['ProfileImageUrl'] as String?;
       }
 
-      // 6) Find selected estate data (if provider)
+      // 6) selected estate
       Map<dynamic, dynamic>? selectedEstateData;
       if (_selectedEstate != null) {
         selectedEstateData = _userEstates.firstWhere(
@@ -335,20 +335,20 @@ class _AddPostScreenState extends State<AddPostScreen> {
         }
       }
 
-      // 7) Prepare database reference & new post ID
+      // 7) db ref
       final postsRef = FirebaseDatabase.instance.ref("App/AllPosts");
       if (_postId.isEmpty) {
         _postId = postsRef.push().key!;
       }
 
-      // 8) Compute total bytes for progress
+      // 8) total bytes
       int totalBytes = 0;
       for (final f in [..._imageFiles, ..._videoFiles]) {
         totalBytes += await f.length();
       }
       int cumulativeTransferred = 0;
 
-      // 9) Upload images with aggregated progress
+      // 9) upload images
       final List<String> imageUrls = [];
       for (final img in _imageFiles) {
         final fileBytes = await img.length();
@@ -374,7 +374,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         imageUrls.add(await storageRef.getDownloadURL());
       }
 
-      // 10) Upload videos with aggregated progress
+      // 10) upload videos
       final List<String> videoUrls = [];
       for (final vid in _videoFiles) {
         final fileBytes = await vid.length();
@@ -400,7 +400,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         videoUrls.add(await storageRef.getDownloadURL());
       }
 
-      // 11) Determine display name
+      // 11) display name
       String estateName;
       if (userType == "2" &&
           selectedEstateData != null &&
@@ -415,14 +415,14 @@ class _AddPostScreenState extends State<AddPostScreen> {
         estateName = 'Unknown User';
       }
 
-      // 12) Write post to Realtime Database
+      // 12) write
       await postsRef.child(_postId).set({
         'Description': _titleController.text.trim(),
         'Text': _textController.text.trim(),
         'Date': DateTime.now().millisecondsSinceEpoch,
         'Username': estateName,
         'EstateType': selectedEstateData?['type'],
-        'EstateID': selectedEstateData?['IDEstate'], // IDEstate (public id)
+        'EstateID': selectedEstateData?['IDEstate'],
         'userId': userId,
         'userType': userType,
         'typeAccount': typeAccount,
@@ -434,7 +434,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
         'Status': isSuperUser ? '1' : '0',
       });
 
-      // 13) Dialogs
       await showDialog(
         context: context,
         builder: (_) => isSuperUser
@@ -465,8 +464,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
     }
   }
 
+  // 🔽🔽🔽 modified to show NameEn + BranchEn + (BranchAr) + type
   Widget _buildEstateDropdown(bool isDark) {
-    // If the device is locked to one estate, disable changing it
     final isDisabled = _lockToScopedEstate;
 
     return Column(
@@ -482,11 +481,36 @@ class _AddPostScreenState extends State<AddPostScreen> {
           ),
           hint: Text(getTranslated(context, 'Select Estate')),
           items: _userEstates.map((e) {
-            final name = (e['NameEn'] as String?) ?? '';
-            final type = (e['type'] as String?) ?? '';
+            final data = e['data'] as Map<dynamic, dynamic>;
+            final nameEn = (data['NameEn'] ?? '').toString();
+            final branchEn = (data['BranchEn'] ?? '').toString();
+            final branchAr = (data['BranchAr'] ?? '').toString();
+            final estateType = (e['type'] ?? '').toString();
+
+            // build label like: NameEn - BranchEn (BranchAr) • EstateType
+            final sb = StringBuffer();
+            sb.write(nameEn);
+
+            if (branchEn.isNotEmpty || branchAr.isNotEmpty) {
+              sb.write(' - ');
+              if (branchEn.isNotEmpty) {
+                sb.write(branchEn);
+              }
+              if (branchAr.isNotEmpty) {
+                sb.write(' ($branchAr)');
+              }
+            }
+
+            if (estateType.isNotEmpty) {
+              sb.write('  •  $estateType');
+            }
+
             return DropdownMenuItem<String>(
               value: e['id'],
-              child: Text('$name ($type)', overflow: TextOverflow.ellipsis),
+              child: Text(
+                sb.toString(),
+                overflow: TextOverflow.ellipsis,
+              ),
             );
           }).toList(),
           onChanged:
@@ -545,8 +569,10 @@ class _AddPostScreenState extends State<AddPostScreen> {
         ],
       );
 
-  Widget _removableThumb(
-          {required Widget child, required VoidCallback onRemove}) =>
+  Widget _removableThumb({
+    required Widget child,
+    required VoidCallback onRemove,
+  }) =>
       Padding(
         padding: const EdgeInsets.all(4),
         child: Stack(
@@ -566,7 +592,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                   child: const Icon(Icons.close, color: Colors.white, size: 18),
                 ),
               ),
-            )
+            ),
           ],
         ),
       );
@@ -592,7 +618,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
       );
     }
 
-    List<Widget> existingThumbs = [
+    final List<Widget> existingThumbs = [
       for (final url in _existingImageUrls)
         _removableThumb(
           child: Image.network(url, fit: BoxFit.cover, width: 150),
@@ -640,8 +666,11 @@ class _AddPostScreenState extends State<AddPostScreen> {
                 KeyedSubtree(
                   key: ValueKey(_imageFiles[i].path),
                   child: _removableThumb(
-                    child: Image.file(_imageFiles[i],
-                        fit: BoxFit.cover, width: 150),
+                    child: Image.file(
+                      _imageFiles[i],
+                      fit: BoxFit.cover,
+                      width: 150,
+                    ),
                     onRemove: () => setState(() => _imageFiles.removeAt(i)),
                   ),
                 ),
@@ -683,11 +712,15 @@ class _AddPostScreenState extends State<AddPostScreen> {
                 strokeWidth: 6,
               ),
               const SizedBox(height: 20),
-              Text('${(_uploadProgress * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(color: Colors.white, fontSize: 18)),
+              Text(
+                '${(_uploadProgress * 100).toStringAsFixed(0)}%',
+                style: const TextStyle(color: Colors.white, fontSize: 18),
+              ),
               const SizedBox(height: 10),
-              Text(getTranslated(context, 'Uploading your media...'),
-                  style: const TextStyle(color: Colors.white, fontSize: 16)),
+              Text(
+                getTranslated(context, 'Uploading your media...'),
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
             ],
           ),
         ),

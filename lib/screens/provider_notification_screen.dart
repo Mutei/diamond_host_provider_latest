@@ -228,6 +228,8 @@ class _ProviderNotificationScreenState
                   estateId: notification['estateId'] ?? '',
                   estateType: notification['Type'] ?? '',
                   location: notification['Location'] ?? '',
+                  branchAr: notification['BranchAr'],
+                  branchEn: notification['BranchEn'],
                   rating: double.tryParse(
                           notification['Rating']?.toString() ?? '0') ??
                       0,

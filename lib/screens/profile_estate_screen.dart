@@ -64,39 +64,43 @@ class ProfileEstateScreen extends StatefulWidget {
   final String isSmokingAllowed;
   final String hasJacuzziInRoom;
   final String lstMusic;
+  final String? branchEn;
+  final String? branchAr;
 
-  const ProfileEstateScreen({
-    Key? key,
-    required this.nameEn,
-    required this.nameAr,
-    required this.estateId,
-    required this.estateType,
-    required this.location,
-    required this.rating,
-    required this.fee,
-    required this.deliveryTime,
-    required this.price,
-    required this.typeOfRestaurant,
-    required this.sessions,
-    required this.menuLink,
-    required this.entry,
-    required this.music,
-    required this.lat,
-    required this.lon,
-    required this.bioAr,
-    required this.type,
-    required this.bioEn,
-    required this.isSmokingAllowed,
-    required this.hasGym,
-    required this.hasMassage,
-    required this.hasBarber,
-    required this.hasSwimmingPool,
-    required this.hasKidsArea,
-    required this.hasJacuzziInRoom,
-    required this.valetWithFees,
-    required this.hasValet,
-    required this.lstMusic,
-  }) : super(key: key);
+  const ProfileEstateScreen(
+      {Key? key,
+      required this.nameEn,
+      required this.nameAr,
+      required this.estateId,
+      required this.estateType,
+      required this.location,
+      required this.rating,
+      required this.fee,
+      required this.deliveryTime,
+      required this.price,
+      required this.typeOfRestaurant,
+      required this.sessions,
+      required this.menuLink,
+      required this.entry,
+      required this.music,
+      required this.lat,
+      required this.lon,
+      required this.bioAr,
+      required this.type,
+      required this.bioEn,
+      required this.isSmokingAllowed,
+      required this.hasGym,
+      required this.hasMassage,
+      required this.hasBarber,
+      required this.hasSwimmingPool,
+      required this.hasKidsArea,
+      required this.hasJacuzziInRoom,
+      required this.valetWithFees,
+      required this.hasValet,
+      required this.lstMusic,
+      required this.branchEn,
+      required this.branchAr})
+      : super(key: key);
 
   @override
   _ProfileEstateScreenState createState() => _ProfileEstateScreenState();
@@ -768,9 +772,21 @@ class _ProfileEstateScreenState extends State<ProfileEstateScreen> {
   @override
   Widget build(BuildContext context) {
     final String languageCode = Localizations.localeOf(context).languageCode;
-    final String displayName = languageCode == 'ar'
+
+// get name from RTDB or from widget
+    final String baseName = languageCode == 'ar'
         ? (estate['NameAr'] ?? widget.nameAr)
         : (estate['NameEn'] ?? widget.nameEn);
+
+// get branch from RTDB if available, otherwise from widget
+    final String branch = languageCode == 'ar'
+        ? ((estate['BranchAr'] ?? widget.branchAr) ?? '')
+        : ((estate['BranchEn'] ?? widget.branchEn) ?? '');
+
+// final display
+    final String displayName =
+        branch.trim().isNotEmpty ? '$baseName - ${branch.trim()}' : baseName;
+
     final String displayBio = languageCode == 'ar'
         ? (estate['BioAr'] ?? widget.bioAr)
         : (estate['BioEn'] ?? widget.bioEn);
