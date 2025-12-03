@@ -736,5 +736,7 @@
 
   "An authentication error occurred": "حدث خطأ في المصادقة",
 
-  "Sending code...": "جاري إرسال الرمز..."
+  "Sending code...": "جاري إرسال الرمز...",
+  "Please enter a valid phone number like +2010xxxxxxx or +9665xxxxxxx": "الرجاء إدخال رقم هاتف صالح مثل +2010xxxxxxx أو +9665xxxxxxx"
+
 }

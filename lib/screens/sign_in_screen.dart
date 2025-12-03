@@ -77,22 +77,19 @@ class _SignInScreenState extends State<SignInScreen> {
 
   /// Simple regex-based validation for E.164 & Saudi mobile
   Future<String?> _preValidateNumber(String raw) async {
+    // Just check general E.164 format
     final e164 = RegExp(r'^\+\d{8,15}$');
     if (!e164.hasMatch(raw)) {
       return getTranslated(
         context,
-        'Please enter in E.164 format, e.g. +9665XXXXXXXX',
+        'Please enter a valid phone number like +2010xxxxxxx or +9665xxxxxxx',
       );
     }
-    final saudi = RegExp(r'^\+9665\d{8}$');
-    if (!saudi.hasMatch(raw)) {
-      return getTranslated(
-        context,
-        'Please enter a valid Saudi mobile: +9665XXXXXXXX',
-      );
-    }
+    print(
+        'Please enter a valid phone number like +2010xxxxxxx or +9665xxxxxxx');
+
     _phoneNumber = raw;
-    return null;
+    return null; // ✅ everything OK
   }
 
   @override

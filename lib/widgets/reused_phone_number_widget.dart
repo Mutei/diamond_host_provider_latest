@@ -54,9 +54,15 @@ class ReusedPhoneNumberField extends StatelessWidget {
         ),
         initialCountryCode: 'SA', // Default country code
         onChanged: (phone) {
-          onPhoneNumberChanged(
-              phone.completeNumber); // Handle phone number input
+          print("📞 IntlPhoneField → completeNumber = ${phone.completeNumber}");
+          print("📱 IntlPhoneField → number = ${phone.number}");
+          print("🌍 IntlPhoneField → countryCode = ${phone.countryCode}");
+          print(
+              "⚙️ IntlPhoneField → full = ${phone.countryISOCode} ${phone.completeNumber}");
+
+          onPhoneNumberChanged(phone.completeNumber);
         },
+
         validator: validator, // Add the correct validator type
       ),
     );

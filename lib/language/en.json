@@ -733,6 +733,8 @@
   "We couldn't find a phone number linked to your account.": "We couldn't find a phone number linked to your account.",
   "Failed to send code": "Failed to send code",
   "An authentication error occurred": "An authentication error occurred",
-  "Sending code...": "Sending code..."
+  "Sending code...": "Sending code...",
+  "Please enter a valid phone number like +2010xxxxxxx or +9665xxxxxxx": "Please enter a valid phone number like +2010xxxxxxx or +9665xxxxxxx"
+
 
 }
