@@ -123,25 +123,54 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
       existingData = Map<String, dynamic>.from(snapshot.value as Map);
     }
 
-    final Map<String, String?> updatedUserData = {
-      if (_firstNameController.text != existingData['FirstName'])
-        'FirstName': _firstNameController.text,
-      if (_secondNameController.text != existingData['SecondName'])
-        'SecondName': _secondNameController.text,
-      if (_lastNameController.text != existingData['LastName'])
-        'LastName': _lastNameController.text,
-      if (cityValue != existingData['City']) 'City': cityValue,
-      if (stateValue != existingData['State']) 'State': stateValue,
-      if (countryValue != existingData['Country']) 'Country': countryValue,
-      'Email': widget.email,
+    // final Map<String, String?> updatedUserData = {
+    //   if (_firstNameController.text != existingData['FirstName'])
+    //     'FirstName': _firstNameController.text,
+    //   if (_secondNameController.text != existingData['SecondName'])
+    //     'SecondName': _secondNameController.text,
+    //   if (_lastNameController.text != existingData['LastName'])
+    //     'LastName': _lastNameController.text,
+    //   if (cityValue != existingData['City']) 'City': cityValue,
+    //   if (stateValue != existingData['State']) 'State': stateValue,
+    //   if (countryValue != existingData['Country']) 'Country': countryValue,
+    //   'Email': widget.email,
+    //   'PhoneNumber': widget.phoneNumber,
+    //   'Password': widget.password,
+    //   'TypeUser': widget.typeUser, // keep same as passed
+    //   'TypeAccount': widget.typeAccount, // keep same as passed
+    //   'userId': userId,
+    //   'DateOfRegistration': existingData['DateOfRegistration'] ??
+    //       DateFormat('dd/MM/yyyy').format(DateTime.now()),
+    //   'AcceptedTermsAndConditions': 'true',
+    // };
+    final Map<String, dynamic> updatedUserData = {
+      if (_firstNameController.text != (existingData['FirstName'] ?? ''))
+        'FirstName': _firstNameController.text.trim(),
+      if (_secondNameController.text != (existingData['SecondName'] ?? ''))
+        'SecondName': _secondNameController.text.trim(),
+      if (_lastNameController.text != (existingData['LastName'] ?? ''))
+        'LastName': _lastNameController.text.trim(),
+
+      if (cityValue != (existingData['City'] ?? '')) 'City': cityValue,
+      if (stateValue != (existingData['State'] ?? '')) 'State': stateValue,
+      if (countryValue != (existingData['Country'] ?? ''))
+        'Country': countryValue,
+
+      // keep required fields
+      'Email': widget.email.trim().toLowerCase(),
       'PhoneNumber': widget.phoneNumber,
       'Password': widget.password,
-      'TypeUser': widget.typeUser, // keep same as passed
-      'TypeAccount': widget.typeAccount, // keep same as passed
+      'TypeUser': widget.typeUser,
+      'TypeAccount': widget.typeAccount,
       'userId': userId,
       'DateOfRegistration': existingData['DateOfRegistration'] ??
           DateFormat('dd/MM/yyyy').format(DateTime.now()),
-      'AcceptedTermsAndConditions': 'true',
+
+      // ✅ important: keep it boolean (not "true" string)
+      'AcceptedTermsAndConditions': true,
+
+      // ✅ gate for MainScreen access (same as FillInfoScreen)
+      'OnboardingCompleted': true,
     };
 
     await ref.update(updatedUserData);

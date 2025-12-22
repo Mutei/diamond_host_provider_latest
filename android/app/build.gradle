@@ -41,7 +41,7 @@ android {
         targetSdk 36    // satisfies "must target Android 15 (API 35) or higher"
 
         // you hard-coded 5, keep it; or switch back to flutterVersionCode
-        versionCode 120
+        versionCode 124
         versionName flutterVersionName
 
         multiDexEnabled true

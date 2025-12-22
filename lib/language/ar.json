@@ -737,6 +737,17 @@
   "An authentication error occurred": "حدث خطأ في المصادقة",
 
   "Sending code...": "جاري إرسال الرمز...",
-  "Please enter a valid phone number like +2010xxxxxxx or +9665xxxxxxx": "الرجاء إدخال رقم هاتف صالح مثل +2010xxxxxxx أو +9665xxxxxxx"
+  "Please enter a valid phone number like +2010xxxxxxx or +9665xxxxxxx": "الرجاء إدخال رقم هاتف صالح مثل +2010xxxxxxx أو +9665xxxxxxx",
+  "Sign-up incomplete": "لم تكتمل عملية التسجيل",
+  "We could not complete sign-up (network/linking issue). Please try again.": "تعذر إكمال عملية التسجيل (مشكلة في الشبكة أو الربط). يرجى المحاولة مرة أخرى.",
+  "User ID is null after linking credentials.": "معرّف المستخدم فارغ بعد ربط بيانات الاعتماد.",
+  "Incorrect OTP or sign-up could not be completed. Please try again.": "رمز التحقق غير صحيح أو تعذر إكمال عملية التسجيل. يرجى المحاولة مرة أخرى.",
+  "The OTP you entered is incorrect. Please check the code and try again.": "رمز التحقق الذي أدخلته غير صحيح. يرجى التأكد من الرمز والمحاولة مرة أخرى.",
+  "This OTP has expired. Please request a new code.": "انتهت صلاحية رمز التحقق. يرجى طلب رمز جديد.",
+  "Network issue detected. Please check your internet connection and try again.": "تم اكتشاف مشكلة في الشبكة. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.",
+  "We couldn't complete verification due to a temporary issue. Please try again.": "تعذر إكمال عملية التحقق بسبب مشكلة مؤقتة. يرجى المحاولة مرة أخرى.",
+  "Paste or type the 6-digit code": "الصق أو اكتب الرمز المكوّن من 6 أرقام"
+
+
 
 }

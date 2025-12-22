@@ -1,10 +1,7 @@
 import 'dart:async';
 import 'package:daimond_host_provider/constants/colors.dart';
 import 'package:daimond_host_provider/localization/language_constants.dart';
-import 'package:daimond_host_provider/screens/personal_info_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:daimond_host_provider/state_management/general_provider.dart';
 import '../auth_handler.dart';
 
 class SplashScreen extends StatefulWidget {

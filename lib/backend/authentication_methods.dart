@@ -268,6 +268,7 @@
 //   }
 // }
 
+import 'package:daimond_host_provider/localization/language_constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -356,35 +357,44 @@ class AuthenticationMethods {
       await _auth.verifyPhoneNumber(
         phoneNumber: phoneNumber,
         timeout: const Duration(seconds: 120),
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          try {
-            final userCredential = await _auth.signInWithCredential(credential);
-            final emailCred = EmailAuthProvider.credential(
-              email: email,
-              password: password,
-            );
-            await userCredential.user!.linkWithCredential(emailCred);
-
-            final userId = userCredential.user?.uid;
-            if (userId != null) {
-              await _saveUserData(
-                email: email,
-                password: password,
-                phone: phoneNumber,
-                userId: userId,
-                acceptedTerms: acceptedTerms,
-                agentCode: agentCode,
-              );
-            }
-
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const FillInfoScreen()),
-              (route) => false,
-            );
-          } catch (e) {
-            print('Auto verification linking failed: $e');
-          }
+        verificationCompleted: (PhoneAuthCredential credential) {
+          // ❌ Disabled on purpose:
+          // We do NOT allow automatic phone authentication / auto-linking,
+          // because it can create a "phone-only" signed-in user in bad network cases.
+          //
+          // ✅ Force manual OTP entry (codeSent -> OTPScreen -> authenticateWithPhoneAndEmail)
+          return;
         },
+
+        // verificationCompleted: (PhoneAuthCredential credential) async {
+        //   try {
+        //     final userCredential = await _auth.signInWithCredential(credential);
+        //     final emailCred = EmailAuthProvider.credential(
+        //       email: email,
+        //       password: password,
+        //     );
+        //     await userCredential.user!.linkWithCredential(emailCred);
+        //
+        //     final userId = userCredential.user?.uid;
+        //     if (userId != null) {
+        //       await _saveUserData(
+        //         email: email,
+        //         password: password,
+        //         phone: phoneNumber,
+        //         userId: userId,
+        //         acceptedTerms: acceptedTerms,
+        //         agentCode: agentCode,
+        //       );
+        //     }
+        //
+        //     Navigator.of(context).pushAndRemoveUntil(
+        //       MaterialPageRoute(builder: (_) => const FillInfoScreen()),
+        //       (route) => false,
+        //     );
+        //   } catch (e) {
+        //     print('Auto verification linking failed: $e');
+        //   }
+        // },
         verificationFailed: (FirebaseAuthException e) async {
           String dialogMessage;
           switch (e.code) {
@@ -407,7 +417,7 @@ class AuthenticationMethods {
           await showDialog(
             context: context,
             builder: (_) => FailureDialog(
-              text: 'Phone verification failed',
+              text: 'Verification failed',
               text1: dialogMessage,
             ),
           );
@@ -450,21 +460,27 @@ class AuthenticationMethods {
     required String agentCode,
     required BuildContext context,
   }) async {
+    UserCredential? userCred;
+
     try {
       final phoneCred = PhoneAuthProvider.credential(
         verificationId: verificationId,
         smsCode: smsCode,
       );
-      final userCred = await _auth.signInWithCredential(phoneCred);
+
+      userCred = await _auth.signInWithCredential(phoneCred);
+
       final emailCred = EmailAuthProvider.credential(
         email: email.trim().toLowerCase(),
         password: password,
       );
+
       await userCred.user!.linkWithCredential(emailCred);
 
       final userId = userCred.user?.uid;
       if (userId == null) {
-        throw Exception("User ID is null after linking credentials.");
+        throw Exception(getTranslated(
+            context, "User ID is null after linking credentials."));
       }
 
       await _saveUserData(
@@ -476,14 +492,65 @@ class AuthenticationMethods {
         agentCode: agentCode,
       );
 
-      Navigator.pushReplacement(
-        context,
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const FillInfoScreen()),
+        (route) => false, // removes OTP + anything behind it
       );
     } catch (e) {
+      // ✅ ROLLBACK: don't keep phone-only user
+      try {
+        await userCred?.user?.delete();
+      } catch (_) {}
+      await _auth.signOut();
+
       throw Exception('Authentication failed: ${e.toString()}');
     }
   }
+
+  // Future<void> authenticateWithPhoneAndEmail({
+  //   required String email,
+  //   required String password,
+  //   required String phone,
+  //   required String verificationId,
+  //   required String smsCode,
+  //   required bool acceptedTerms,
+  //   required String agentCode,
+  //   required BuildContext context,
+  // }) async {
+  //   try {
+  //     final phoneCred = PhoneAuthProvider.credential(
+  //       verificationId: verificationId,
+  //       smsCode: smsCode,
+  //     );
+  //     final userCred = await _auth.signInWithCredential(phoneCred);
+  //     final emailCred = EmailAuthProvider.credential(
+  //       email: email.trim().toLowerCase(),
+  //       password: password,
+  //     );
+  //     await userCred.user!.linkWithCredential(emailCred);
+  //
+  //     final userId = userCred.user?.uid;
+  //     if (userId == null) {
+  //       throw Exception("User ID is null after linking credentials.");
+  //     }
+  //
+  //     await _saveUserData(
+  //       email: email.trim().toLowerCase(),
+  //       password: password,
+  //       phone: phone,
+  //       userId: userId,
+  //       acceptedTerms: acceptedTerms,
+  //       agentCode: agentCode,
+  //     );
+  //
+  //     Navigator.pushReplacement(
+  //       context,
+  //       MaterialPageRoute(builder: (_) => const FillInfoScreen()),
+  //     );
+  //   } catch (e) {
+  //     throw Exception('Authentication failed: ${e.toString()}');
+  //   }
+  // }
 
   Future<void> _saveUserData({
     required String email,

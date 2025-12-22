@@ -734,7 +734,19 @@
   "Failed to send code": "Failed to send code",
   "An authentication error occurred": "An authentication error occurred",
   "Sending code...": "Sending code...",
-  "Please enter a valid phone number like +2010xxxxxxx or +9665xxxxxxx": "Please enter a valid phone number like +2010xxxxxxx or +9665xxxxxxx"
+  "Please enter a valid phone number like +2010xxxxxxx or +9665xxxxxxx": "Please enter a valid phone number like +2010xxxxxxx or +9665xxxxxxx",
+  "Sign-up incomplete": "Sign-up incomplete",
+  "We could not complete sign-up (network/linking issue). Please try again.": "We could not complete sign-up (network/linking issue). Please try again.",
+  "User ID is null after linking credentials.": "User ID is null after linking credentials.",
+  "Incorrect OTP or sign-up could not be completed. Please try again.": "Incorrect OTP or sign-up could not be completed. Please try again.",
+  "The OTP you entered is incorrect. Please check the code and try again.": "The OTP you entered is incorrect. Please check the code and try again.",
+  "This OTP has expired. Please request a new code.": "This OTP has expired. Please request a new code.",
+  "Network issue detected. Please check your internet connection and try again.": "Network issue detected. Please check your internet connection and try again.",
+  "We couldn't complete verification due to a temporary issue. Please try again.": "We couldn't complete verification due to a temporary issue. Please try again.",
+  "Paste or type the 6-digit code": "Paste or type the 6-digit code"
+
+
+
 
 
 }

@@ -119,6 +119,15 @@ class _FillInfoScreenState extends State<FillInfoScreen> {
         final userRef = _db.child('App/User/$uid');
 
         // 1) save the info
+        // await userRef.update({
+        //   'FirstName': _firstNameController.text.trim(),
+        //   'SecondName': _secondNameController.text.trim(),
+        //   'LastName': _lastNameController.text.trim(),
+        //   'Gender': _gender,
+        //   'Country': countryValue,
+        //   'State': stateValue,
+        //   'City': cityValue,
+        // });
         await userRef.update({
           'FirstName': _firstNameController.text.trim(),
           'SecondName': _secondNameController.text.trim(),
@@ -127,6 +136,9 @@ class _FillInfoScreenState extends State<FillInfoScreen> {
           'Country': countryValue,
           'State': stateValue,
           'City': cityValue,
+
+          // ✅ gate for MainScreen access
+          'OnboardingCompleted': true,
         });
 
         // 2) read TypeUser to apply the SAME condition as personal_info_screen

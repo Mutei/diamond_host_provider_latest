@@ -5,11 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:daimond_host_provider/backend/authentication_methods.dart';
 import 'package:daimond_host_provider/screens/personal_info_screen.dart';
-import '../backend/login_method.dart';
 import '../constants/colors.dart';
 import '../utils/failure_dialogue.dart';
-import 'package:firebase_database/firebase_database.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class OTPScreen extends StatefulWidget {
   final String verificationId;
@@ -99,20 +96,68 @@ class _OTPScreenState extends State<OTPScreen> {
         _isLoading = false;
       });
 
+      // ✅ IMPORTANT: ensure no partial auth session remains
+      await FirebaseAuth.instance.signOut();
+
+      String title = "Verification failed.";
+      String message;
+
+      final error = e.toString().toLowerCase();
+
+      if (error.contains('invalid-verification-code') ||
+          error.contains('invalid otp') ||
+          error.contains('wrong otp')) {
+        message = getTranslated(
+          context,
+          "The OTP you entered is incorrect. Please check the code and try again.",
+        );
+      } else if (error.contains('session-expired') ||
+          error.contains('expired')) {
+        message = getTranslated(
+          context,
+          "This OTP has expired. Please request a new code.",
+        );
+      } else if (error.contains('network') ||
+          error.contains('timeout') ||
+          error.contains('unavailable')) {
+        message = getTranslated(
+          context,
+          "Network issue detected. Please check your internet connection and try again.",
+        );
+      } else {
+        message = getTranslated(
+          context,
+          "We couldn't complete verification due to a temporary issue. Please try again.",
+        );
+      }
+
       showDialog(
         context: context,
         builder: (context) => FailureDialog(
-          text: "OTP Verification Failed",
-          text1: "You have entered an incorrect OTP code. Please try again.",
+          text: title,
+          text1: message,
         ),
       );
     }
 
+    // } catch (e) {
+    //   setState(() {
+    //     _isLoading = false;
+    //   });
+    //
+    //   showDialog(
+    //     context: context,
+    //     builder: (context) => FailureDialog(
+    //       text: "OTP Verification Failed",
+    //       text1: "You have entered an incorrect OTP code. Please try again.",
+    //     ),
+    //   );
+    // }
+
     if (isVerified) {
-      Navigator.pushReplacement(
-        context,
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (context) => PersonalInfoScreen(
+          builder: (_) => PersonalInfoScreen(
             email: widget.email,
             phoneNumber: widget.phoneNumber,
             password: widget.password,
@@ -120,6 +165,7 @@ class _OTPScreenState extends State<OTPScreen> {
             typeAccount: '1',
           ),
         ),
+        (route) => false, // removes OTP + everything behind it
       );
     }
   }
@@ -195,18 +241,36 @@ class _OTPScreenState extends State<OTPScreen> {
   Widget _buildOTPField() {
     return TextField(
       controller: _otpController,
+      keyboardType: TextInputType.number,
+      maxLength: 6,
+      enableSuggestions: false,
+      autocorrect: false,
+      textInputAction: TextInputAction.done,
       decoration: InputDecoration(
         prefixIcon: const Icon(Icons.security),
         labelText: getTranslated(context, 'OTP Code'),
-        hintText: getTranslated(context, 'Enter 6-digit OTP'),
+        hintText: getTranslated(context, 'Paste or type the 6-digit code'),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8.0),
         ),
         counterText: '',
       ),
-      keyboardType: TextInputType.number,
-      maxLength: 6, // Assuming a 6-digit OTP
     );
+
+    // return TextField(
+    //   controller: _otpController,
+    //   decoration: InputDecoration(
+    //     prefixIcon: const Icon(Icons.security),
+    //     labelText: getTranslated(context, 'OTP Code'),
+    //     hintText: getTranslated(context, 'Enter 6-digit OTP'),
+    //     border: OutlineInputBorder(
+    //       borderRadius: BorderRadius.circular(8.0),
+    //     ),
+    //     counterText: '',
+    //   ),
+    //   keyboardType: TextInputType.number,
+    //   maxLength: 6, // Assuming a 6-digit OTP
+    // );
   }
 
   Widget _buildVerifyButton() {
