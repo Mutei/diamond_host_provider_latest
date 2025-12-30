@@ -48,6 +48,7 @@ import 'main_screen_content.dart';
 // METRO
 import '../widgets/riyadh_metro_picker.dart';
 import 'package:collection/collection.dart';
+import 'package:geocoding/geocoding.dart' as geo;
 
 class EditEstate extends StatefulWidget {
   final Map objEstate;
@@ -315,6 +316,40 @@ class _EditEstateState extends State<EditEstate> {
         default:
           break;
       }
+    }
+  }
+
+  Future<Map<String, String>> _reverseGeocode(LatLng p) async {
+    try {
+      final placemarks = await geo.placemarkFromCoordinates(
+        p.latitude,
+        p.longitude,
+      );
+
+      if (placemarks.isEmpty) return {};
+
+      final pm = placemarks.first;
+
+      final city = (pm.locality ?? pm.subAdministrativeArea ?? "").trim();
+      final state = (pm.administrativeArea ?? "").trim();
+      final country = (pm.country ?? "").trim();
+
+      // ✅ Branch suggestion (neighborhood/area)
+      final branch =
+          (pm.subLocality ?? pm.subAdministrativeArea ?? pm.locality ?? "")
+              .trim();
+
+      final out = <String, String>{};
+      if (country.isNotEmpty) out["Country"] = country;
+      if (state.isNotEmpty) out["State"] = state;
+      if (city.isNotEmpty) out["City"] = city;
+      if (branch.isNotEmpty) out["Branch"] = branch;
+
+      debugPrint("✅ Reverse result => $out");
+      return out;
+    } catch (e) {
+      debugPrint("❌ Reverse geocode error: $e");
+      return {};
     }
   }
 
@@ -899,51 +934,51 @@ class _EditEstateState extends State<EditEstate> {
                       ),
                     ),
 
-                    40.kH,
-                    TextHeader("Branch in Arabic"),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: TextFormFieldStyle(
-                        context: context,
-                        hint: "Branch in Arabic",
-                        icon: const Icon(Icons.person, color: kPurpleColor),
-                        control: arEstateBranchController,
-                        isObsecured: false,
-                        validate: true,
-                        textInputType: TextInputType.text,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return getTranslated(context,
-                                "Estate's branch name in arabic is missing");
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-
-                    // METRO: header + summary + picker (visible only when City == Riyadh)
-
-                    40.kH,
-                    TextHeader("Branch in English"),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: TextFormFieldStyle(
-                        context: context,
-                        hint: "Branch in English",
-                        icon: const Icon(Icons.person, color: kPurpleColor),
-                        control: enEstateBranchController,
-                        isObsecured: false,
-                        validate: true,
-                        textInputType: TextInputType.text,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return getTranslated(context,
-                                "Estate's branch name in english is missing");
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
+                    // 40.kH,
+                    // TextHeader("Branch in Arabic"),
+                    // Padding(
+                    //   padding: const EdgeInsets.symmetric(horizontal: 20),
+                    //   child: TextFormFieldStyle(
+                    //     context: context,
+                    //     hint: "Branch in Arabic",
+                    //     icon: const Icon(Icons.person, color: kPurpleColor),
+                    //     control: arEstateBranchController,
+                    //     isObsecured: false,
+                    //     validate: true,
+                    //     textInputType: TextInputType.text,
+                    //     validator: (value) {
+                    //       if (value == null || value.trim().isEmpty) {
+                    //         return getTranslated(context,
+                    //             "Estate's branch name in arabic is missing");
+                    //       }
+                    //       return null;
+                    //     },
+                    //   ),
+                    // ),
+                    //
+                    // // METRO: header + summary + picker (visible only when City == Riyadh)
+                    //
+                    // 40.kH,
+                    // TextHeader("Branch in English"),
+                    // Padding(
+                    //   padding: const EdgeInsets.symmetric(horizontal: 20),
+                    //   child: TextFormFieldStyle(
+                    //     context: context,
+                    //     hint: "Branch in English",
+                    //     icon: const Icon(Icons.person, color: kPurpleColor),
+                    //     control: enEstateBranchController,
+                    //     isObsecured: false,
+                    //     validate: true,
+                    //     textInputType: TextInputType.text,
+                    //     validator: (value) {
+                    //       if (value == null || value.trim().isEmpty) {
+                    //         return getTranslated(context,
+                    //             "Estate's branch name in english is missing");
+                    //       }
+                    //       return null;
+                    //     },
+                    //   ),
+                    // ),
 
                     SizedBox(height: 40),
                     if (estateType == "2" || estateType == "3") ...[
@@ -1037,19 +1072,135 @@ class _EditEstateState extends State<EditEstate> {
 
                     SizedBox(height: 20),
                     TextHeader("Edit Estate Location"),
+                    // EditLocationSection(
+                    //   initialLocation: _editedLocation,
+                    //   onLocationChanged: (newLocation) {
+                    //     setState(() {
+                    //       _editedLocation = newLocation;
+                    //     });
+                    //   },
+                    // ),
                     EditLocationSection(
-                      initialLocation: _editedLocation,
-                      onLocationChanged: (newLocation) {
-                        setState(() {
-                          _editedLocation = newLocation;
-                        });
-                      },
-                    ),
+                        initialLocation: _editedLocation,
+                        onLocationChanged: (newLocation) async {
+                          // 1) Update Lat/Lon
+                          setState(() {
+                            _editedLocation = newLocation;
+                          });
 
-                    40.kH,
-                    TextHeader("Location information"),
-                    const SizedBox(height: 20),
-                    ChooseCity(),
+                          // 2) Reverse geocode
+                          final ccs = await _reverseGeocode(newLocation);
+                          if (!mounted) return;
+
+                          if (ccs.isNotEmpty) {
+                            setState(() {
+                              countryValue = ccs["Country"] ?? countryValue;
+                              stateValue = ccs["State"] ?? stateValue;
+                              cityValue = ccs["City"] ?? cityValue;
+
+                              countryController.text = countryValue ?? "";
+                              stateController.text = stateValue ?? "";
+                              cityController.text = cityValue ?? "";
+
+                              // ✅ ALWAYS update branch
+                              final branch = (ccs["Branch"] ?? "").trim();
+                              if (branch.isNotEmpty) {
+                                enEstateBranchController.text = branch;
+                                arEstateBranchController.text = branch;
+                              }
+
+                              // ✅ Metro reset if leaving Riyadh
+                              final isRiyadhNow =
+                                  (cityValue ?? "").toLowerCase().trim() ==
+                                      "riyadh";
+
+                              if (!isRiyadhNow) {
+                                _metro.selectedLines.clear();
+                                _metro.selectedStationsByLine.clear();
+                                _metroCity = "";
+                              } else {
+                                _metroCity = "Riyadh";
+                              }
+                            });
+
+                            debugPrint(
+                                "✅ Location + Country/State/City/Branch updated from map");
+                          }
+                        }
+
+                        // onLocationChanged: (newLocation) async {
+                        //   // 1) Update Lat/Lon
+                        //   setState(() {
+                        //     _editedLocation = newLocation;
+                        //   });
+                        //
+                        //   // 2) Reverse geocode -> update Country/State/City like MapsScreen
+                        //   final ccs = await _reverseGeocode(newLocation);
+                        //
+                        //   if (!mounted) return;
+                        //
+                        //   if (ccs.isNotEmpty) {
+                        //     setState(() {
+                        //       countryValue = ccs["Country"] ?? countryValue;
+                        //       stateValue = ccs["State"] ?? stateValue;
+                        //       cityValue = ccs["City"] ?? cityValue;
+                        //
+                        //       countryController.text =
+                        //           countryValue?.toString() ?? "";
+                        //       stateController.text = stateValue?.toString() ?? "";
+                        //       cityController.text = cityValue?.toString() ?? "";
+                        //
+                        //       // ✅ Auto-Branch suggestion (only if branch fields are empty OR you want to always overwrite)
+                        //       // final branch = (ccs["Branch"] ?? "").trim();
+                        //       // if (branch.isNotEmpty) {
+                        //       //   if (enEstateBranchController.text
+                        //       //       .trim()
+                        //       //       .isEmpty) {
+                        //       //     enEstateBranchController.text = branch;
+                        //       //   }
+                        //       //   if (arEstateBranchController.text
+                        //       //       .trim()
+                        //       //       .isEmpty) {
+                        //       //     arEstateBranchController.text =
+                        //       //         branch; // optional: keep same text if you don't translate
+                        //       //   }
+                        //       // }
+                        //       // ✅ ALWAYS update branch from map location
+                        //       final branch = (ccs["Branch"] ?? "").trim();
+                        //
+                        //       if (branch.isNotEmpty) {
+                        //         enEstateBranchController.text = branch;
+                        //         arEstateBranchController.text = branch;
+                        //       }
+                        //
+                        //       // Metro reset if leaving Riyadh
+                        //       final isRiyadhNow = (cityValue ?? "")
+                        //               .toString()
+                        //               .toLowerCase()
+                        //               .trim() ==
+                        //           "riyadh";
+                        //       if (!isRiyadhNow) {
+                        //         _metro.selectedLines.clear();
+                        //         _metro.selectedStationsByLine.clear();
+                        //         _metroCity = "";
+                        //       } else {
+                        //         _metroCity = "Riyadh";
+                        //       }
+                        //     });
+                        //
+                        //     debugPrint(
+                        //         "✅ Location + Country/City/State (+Branch) updated after map change.");
+                        //   } else {
+                        //     debugPrint(
+                        //         "⚠️ Reverse returned empty; Country/City/State not changed.");
+                        //   }
+                        // },
+                        ),
+
+                    // 40.kH,
+                    // TextHeader("Location information"),
+                    // const SizedBox(height: 20),
+                    // ChooseCity(),
                     40.kH,
                     // TextHeader("Nearby Riyadh Metro (Optional)"),
 
@@ -2149,9 +2300,9 @@ class _EditEstateState extends State<EditEstate> {
       "BioAr": arBioController.text,
       "BioEn": enBioController.text,
       "MenuLink": menuLinkController.text,
-      "Country": countryValue,
-      "City": cityValue,
-      "State": stateValue,
+      "Country": (countryValue ?? countryController.text).toString(),
+      "City": (cityValue ?? cityController.text).toString(),
+      "State": (stateValue ?? stateController.text).toString(),
       "Type": type,
       "IDUser": FirebaseAuth.instance.currentUser?.uid ?? "No Id",
       "IDEstate": widget.objEstate['IDEstate'],

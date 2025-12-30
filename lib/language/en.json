@@ -743,10 +743,9 @@
   "This OTP has expired. Please request a new code.": "This OTP has expired. Please request a new code.",
   "Network issue detected. Please check your internet connection and try again.": "Network issue detected. Please check your internet connection and try again.",
   "We couldn't complete verification due to a temporary issue. Please try again.": "We couldn't complete verification due to a temporary issue. Please try again.",
-  "Paste or type the 6-digit code": "Paste or type the 6-digit code"
-
-
-
-
+  "Paste or type the 6-digit code": "Paste or type the 6-digit code",
+  "Location": "Location",
+  "You will set the estate location on the map in the next step.": "You will set the estate location on the map in the next step.",
+  "My Location": "My Location"
 
 }

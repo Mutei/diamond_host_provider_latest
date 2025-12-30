@@ -27,12 +27,12 @@ class ProfileScreenUser extends StatefulWidget {
 class _ProfileScreenUserState extends State<ProfileScreenUser> {
   // Controllers
   final TextEditingController _firstNameController = TextEditingController();
-  final TextEditingController _secondNameController = TextEditingController();
+  // final TextEditingController _secondNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _countryController = TextEditingController();
-  final TextEditingController _cityController = TextEditingController();
+  // final TextEditingController _countryController = TextEditingController();
+  // final TextEditingController _cityController = TextEditingController();
 
   // Image + loading states
   Uint8List? _image;
@@ -56,12 +56,12 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
   @override
   void dispose() {
     _firstNameController.dispose();
-    _secondNameController.dispose();
+    // _secondNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _countryController.dispose();
-    _cityController.dispose();
+    // _countryController.dispose();
+    // _cityController.dispose();
     super.dispose();
   }
 
@@ -115,12 +115,12 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
     final userInfo = await _userInfoService.fetchUserInfo();
     setState(() {
       _firstNameController.text = userInfo['FirstName'] ?? '';
-      _secondNameController.text = userInfo['SecondName'] ?? '';
+      // _secondNameController.text = userInfo['SecondName'] ?? '';
       _lastNameController.text = userInfo['LastName'] ?? '';
       _emailController.text = userInfo['Email'] ?? '';
       _phoneController.text = userInfo['PhoneNumber'] ?? '';
-      _countryController.text = userInfo['Country'] ?? '';
-      _cityController.text = userInfo['City'] ?? '';
+      // _countryController.text = userInfo['Country'] ?? '';
+      // _cityController.text = userInfo['City'] ?? '';
       _isLoading = false;
     });
   }
@@ -225,12 +225,12 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
                       MaterialPageRoute(
                         builder: (_) => EditProfileScreen(
                           firstName: _firstNameController.text,
-                          secondName: _secondNameController.text,
+                          // secondName: _secondNameController.text,
                           lastName: _lastNameController.text,
                           email: _emailController.text,
                           phone: _phoneController.text,
-                          country: _countryController.text,
-                          city: _cityController.text,
+                          // country: _countryController.text,
+                          // city: _cityController.text,
                         ),
                       ),
                     );
@@ -259,26 +259,26 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
                         iconColor: kDeepPurpleColor,
                       ),
 
-                24.kH,
-
-                // Second Name
-                _isLoading
-                    ? Shimmer.fromColors(
-                        baseColor: Colors.grey.shade300,
-                        highlightColor: Colors.grey.shade100,
-                        child: ProfileInfoTextField(
-                          textEditingController: _secondNameController,
-                          textInputType: TextInputType.text,
-                          iconData: Icons.person,
-                          iconColor: kDeepPurpleColor,
-                        ),
-                      )
-                    : ProfileInfoTextField(
-                        textEditingController: _secondNameController,
-                        textInputType: TextInputType.text,
-                        iconData: Icons.person,
-                        iconColor: kDeepPurpleColor,
-                      ),
+                // 24.kH,
+                //
+                // // Second Name
+                // _isLoading
+                //     ? Shimmer.fromColors(
+                //         baseColor: Colors.grey.shade300,
+                //         highlightColor: Colors.grey.shade100,
+                //         child: ProfileInfoTextField(
+                //           textEditingController: _secondNameController,
+                //           textInputType: TextInputType.text,
+                //           iconData: Icons.person,
+                //           iconColor: kDeepPurpleColor,
+                //         ),
+                //       )
+                //     : ProfileInfoTextField(
+                //         textEditingController: _secondNameController,
+                //         textInputType: TextInputType.text,
+                //         iconData: Icons.person,
+                //         iconColor: kDeepPurpleColor,
+                //       ),
 
                 24.kH,
 
@@ -364,47 +364,47 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
                         iconColor: kDeepPurpleColor,
                       ),
 
-                24.kH,
+                // 24.kH,
+                //
+                // // Country
+                // _isLoading
+                //     ? Shimmer.fromColors(
+                //         baseColor: Colors.grey.shade300,
+                //         highlightColor: Colors.grey.shade100,
+                //         child: ProfileInfoTextField(
+                //           textEditingController: _countryController,
+                //           textInputType: TextInputType.text,
+                //           iconData: Icons.location_city,
+                //           iconColor: kDeepPurpleColor,
+                //         ),
+                //       )
+                //     : ProfileInfoTextField(
+                //         textEditingController: _countryController,
+                //         textInputType: TextInputType.text,
+                //         iconData: Icons.location_city,
+                //         iconColor: kDeepPurpleColor,
+                //       ),
 
-                // Country
-                _isLoading
-                    ? Shimmer.fromColors(
-                        baseColor: Colors.grey.shade300,
-                        highlightColor: Colors.grey.shade100,
-                        child: ProfileInfoTextField(
-                          textEditingController: _countryController,
-                          textInputType: TextInputType.text,
-                          iconData: Icons.location_city,
-                          iconColor: kDeepPurpleColor,
-                        ),
-                      )
-                    : ProfileInfoTextField(
-                        textEditingController: _countryController,
-                        textInputType: TextInputType.text,
-                        iconData: Icons.location_city,
-                        iconColor: kDeepPurpleColor,
-                      ),
-
-                24.kH,
-
-                // City
-                _isLoading
-                    ? Shimmer.fromColors(
-                        baseColor: Colors.grey.shade300,
-                        highlightColor: Colors.grey.shade100,
-                        child: ProfileInfoTextField(
-                          textEditingController: _cityController,
-                          textInputType: TextInputType.text,
-                          iconData: Icons.location_city,
-                          iconColor: kDeepPurpleColor,
-                        ),
-                      )
-                    : ProfileInfoTextField(
-                        textEditingController: _cityController,
-                        textInputType: TextInputType.text,
-                        iconData: Icons.location_city,
-                        iconColor: kDeepPurpleColor,
-                      ),
+                // 24.kH,
+                //
+                // // City
+                // _isLoading
+                //     ? Shimmer.fromColors(
+                //         baseColor: Colors.grey.shade300,
+                //         highlightColor: Colors.grey.shade100,
+                //         child: ProfileInfoTextField(
+                //           textEditingController: _cityController,
+                //           textInputType: TextInputType.text,
+                //           iconData: Icons.location_city,
+                //           iconColor: kDeepPurpleColor,
+                //         ),
+                //       )
+                //     : ProfileInfoTextField(
+                //         textEditingController: _cityController,
+                //         textInputType: TextInputType.text,
+                //         iconData: Icons.location_city,
+                //         iconColor: kDeepPurpleColor,
+                //       ),
 
                 24.kH,
               ],

@@ -82,7 +82,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   final GlobalKey _keyAmenitiesHotel = GlobalKey();
   final GlobalKey _keyLocation = GlobalKey();
   final GlobalKey _keyHotelRooms = GlobalKey();
-  final GlobalKey _keyMetro = GlobalKey(); // Metro section anchor
+  // final GlobalKey _keyMetro = GlobalKey(); // Metro section anchor
 
   // Exact field anchors (scroll to field, not just header)
   final GlobalKey _keyNameArField = GlobalKey();
@@ -184,9 +184,9 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   bool family = false;
   bool grandSuite = false;
   bool businessSuite = false;
-  String? countryValue;
-  String? stateValue;
-  String? cityValue;
+  // String? countryValue;
+  // String? stateValue;
+  // String? cityValue;
   int? idEstate;
   late Widget btnLogin;
   String breakfastPrice = '';
@@ -223,7 +223,7 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   List<String> selectedRestaurantTypes = [];
 
   // 🆕 Metro selection controller (replaces in-file metro state/constants)
-  final MetroSelectionController _metroCtrl = MetroSelectionController();
+  // final MetroSelectionController _metroCtrl = MetroSelectionController();
   final TextEditingController _dateOfPhotographyController =
       TextEditingController();
   final TextEditingController _timeOfPhotographyController =
@@ -344,9 +344,9 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
       'estatePhone': phoneNumberController.text,
 
       // Location
-      'country': countryValue,
-      'state': stateValue,
-      'city': cityValue,
+      // 'country': countryValue,
+      // 'state': stateValue,
+      // 'city': cityValue,
 
       // Valet, Kids, Smoking
       'hasValet': hasValet,
@@ -424,9 +424,9 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
       'layoutId': _layoutId,
 
       // Metro
-      'metroCity': ((cityValue ?? '').toLowerCase().trim()),
-      'metroLines': _metroCtrl.chosenLines,
-      'metroStationsByLine': _metroCtrl.chosenStationsByLine,
+      // 'metroCity': ((cityValue ?? '').toLowerCase().trim()),
+      // 'metroLines': _metroCtrl.chosenLines,
+      // 'metroStationsByLine': _metroCtrl.chosenStationsByLine,
     };
   }
 
@@ -470,10 +470,10 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
     menuLinkController.text = (m['menuLink'] ?? '');
     phoneNumberController.text = (m['estatePhone'] ?? '');
 
-    // Location
-    countryValue = m['country'];
-    stateValue = m['state'];
-    cityValue = m['city'];
+    // // Location
+    // countryValue = m['country'];
+    // stateValue = m['state'];
+    // cityValue = m['city'];
 
     // Valet / Kids / Smoking
     hasValet = m['hasValet'] ?? false;
@@ -591,15 +591,15 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
     _saveDraftDebounced(); // NEW
   }
 
-  bool _hasPartialMetroSelection() {
-    final lines = _metroCtrl.chosenLines; // selected lines
-    for (final ln in lines) {
-      final st =
-          _metroCtrl.chosenStationsByLine[ln]; // may be null if none chosen
-      if (st == null || st.isEmpty) return true; // a line with no stations
-    }
-    return false;
-  }
+  // bool _hasPartialMetroSelection() {
+  //   final lines = _metroCtrl.chosenLines; // selected lines
+  //   for (final ln in lines) {
+  //     final st =
+  //         _metroCtrl.chosenStationsByLine[ln]; // may be null if none chosen
+  //     if (st == null || st.isEmpty) return true; // a line with no stations
+  //   }
+  //   return false;
+  // }
 
   Future<void> saveFacilities(String estateId) async {
     for (var facility in facilityList) {
@@ -655,13 +655,14 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
 
   // ===== Validation (combined) =====
   bool _areRequiredFieldsFilled() {
-    bool basicFieldsFilled = nameController.text.isNotEmpty &&
-        enNameController.text.isNotEmpty &&
-        enBranchController.text.isNotEmpty &&
-        arBranchController.text.isNotEmpty &&
-        (countryValue != null && countryValue!.isNotEmpty) &&
-        (stateValue != null && stateValue!.isNotEmpty) &&
-        (cityValue != null && cityValue!.isNotEmpty);
+    bool basicFieldsFilled =
+        nameController.text.isNotEmpty && enNameController.text.isNotEmpty;
+    // enBranchController.text.isNotEmpty &&
+    // arBranchController.text.isNotEmpty;
+    // &&
+    // (countryValue != null && countryValue!.isNotEmpty) &&
+    // (stateValue != null && stateValue!.isNotEmpty) &&
+    // (cityValue != null && cityValue!.isNotEmpty);
 
     if (!basicFieldsFilled) return false;
 
@@ -696,14 +697,14 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
   GlobalKey? _getFirstMissingAnchor() {
     if (nameController.text.isEmpty) return _keyNameArField;
     if (enNameController.text.isEmpty) return _keyNameEnField;
-    if (enBranchController.text.isEmpty) return _keyBranchEnField;
-    if (arBranchController.text.isEmpty) return _keyBranchArField;
+    // if (enBranchController.text.isEmpty) return _keyBranchEnField;
+    // if (arBranchController.text.isEmpty) return _keyBranchArField;
 
-    if ((countryValue == null || countryValue!.isNotEmpty == false) ||
-        (stateValue == null || stateValue!.isNotEmpty == false) ||
-        (cityValue == null || cityValue!.isNotEmpty == false)) {
-      return _keyLocation;
-    }
+    // if ((countryValue == null || countryValue!.isNotEmpty == false) ||
+    //     (stateValue == null || stateValue!.isNotEmpty == false) ||
+    //     (cityValue == null || cityValue!.isNotEmpty == false)) {
+    //   return _keyLocation;
+    // }
 
     if (facilityPdfUrl == null || facilityPdfUrl!.isEmpty) return _keyLegal;
     if (taxPdfUrl == null || taxPdfUrl!.isEmpty) return _keyLegal;
@@ -865,54 +866,54 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                     validate: true,
                     textInputType: TextInputType.text,
                   ),
-                  40.kH,
-                  // Branch EN
-                  Container(
-                    key: _keyBranchEn,
-                    child: const ReusedProviderEstateContainer(
-                      hint: "Branch in English",
-                    ),
-                  ),
-                  // Branch EN field (exact anchor)
-                  Container(
-                    key: _keyBranchEnField,
-                    child: TextFormFieldStyle(
-                      context: context,
-                      hint: "Branch name (Required)",
-                      icon: Icon(
-                        Icons.location_on,
-                        color: kDeepPurpleColor,
-                      ),
-                      control: enBranchController,
-                      isObsecured: false,
-                      validate: true,
-                      textInputType: TextInputType.text,
-                    ),
-                  ),
-                  40.kH,
-                  // Branch AR
-                  Container(
-                    key: _keyBranchAr,
-                    child: const ReusedProviderEstateContainer(
-                      hint: "Branch in Arabic",
-                    ),
-                  ),
-                  // Branch AR field (exact anchor)
-                  Container(
-                    key: _keyBranchArField,
-                    child: TextFormFieldStyle(
-                      context: context,
-                      hint: "Branch name (Required)",
-                      icon: Icon(
-                        Icons.location_on,
-                        color: kDeepPurpleColor,
-                      ),
-                      control: arBranchController,
-                      isObsecured: false,
-                      validate: true,
-                      textInputType: TextInputType.text,
-                    ),
-                  ),
+                  // 40.kH,
+                  // // Branch EN
+                  // Container(
+                  //   key: _keyBranchEn,
+                  //   child: const ReusedProviderEstateContainer(
+                  //     hint: "Branch in English",
+                  //   ),
+                  // ),
+                  // // Branch EN field (exact anchor)
+                  // Container(
+                  //   key: _keyBranchEnField,
+                  //   child: TextFormFieldStyle(
+                  //     context: context,
+                  //     hint: "Branch name (Required)",
+                  //     icon: Icon(
+                  //       Icons.location_on,
+                  //       color: kDeepPurpleColor,
+                  //     ),
+                  //     control: enBranchController,
+                  //     isObsecured: false,
+                  //     validate: true,
+                  //     textInputType: TextInputType.text,
+                  //   ),
+                  // ),
+                  // 40.kH,
+                  // // Branch AR
+                  // Container(
+                  //   key: _keyBranchAr,
+                  //   child: const ReusedProviderEstateContainer(
+                  //     hint: "Branch in Arabic",
+                  //   ),
+                  // ),
+                  // // Branch AR field (exact anchor)
+                  // Container(
+                  //   key: _keyBranchArField,
+                  //   child: TextFormFieldStyle(
+                  //     context: context,
+                  //     hint: "Branch name (Required)",
+                  //     icon: Icon(
+                  //       Icons.location_on,
+                  //       color: kDeepPurpleColor,
+                  //     ),
+                  //     control: arBranchController,
+                  //     isObsecured: false,
+                  //     validate: true,
+                  //     textInputType: TextInputType.text,
+                  //   ),
+                  // ),
                   40.kH,
                   // Legal
                   Row(
@@ -1961,45 +1962,59 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                     ),
                   ),
 
-                  // Location
                   Container(
                     key: _keyLocation,
                     child: const ReusedProviderEstateContainer(
-                      hint: "Location information",
+                      hint: "Location",
                     ),
                   ),
-                  20.kH,
-                  CustomCSCPicker(
-                    key: const PageStorageKey('location_picker'),
-                    onCountryChanged: (value) {
-                      setState(() {
-                        countryValue = value;
-                      });
-                      _saveDraftDebounced();
-                    },
-                    onStateChanged: (value) {
-                      setState(() {
-                        stateValue = value;
-                      });
-                      _saveDraftDebounced();
-                    },
-                    onCityChanged: (value) {
-                      setState(() {
-                        cityValue = value;
-                      });
-                      _saveDraftDebounced();
-                    },
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 50),
+                    child: Text(
+                      getTranslated(context,
+                          "You will set the estate location on the map in the next step."),
+                      style: const TextStyle(fontSize: 14),
+                    ),
                   ),
-
-                  // ===== Nearby Riyadh Metro (REFACTORED) =====
-                  RiyadhMetroPicker(
-                    key: _keyMetro,
-                    controller: _metroCtrl,
-                    isVisible:
-                        (cityValue ?? '').toLowerCase().trim() == 'riyadh',
-                  ),
-
                   40.kH,
+
+                  // Location
+                  // Container(
+                  //   key: _keyLocation,
+                  //   child: const ReusedProviderEstateContainer(
+                  //     hint: "Location information",
+                  //   ),
+                  // ),
+                  // 20.kH,
+                  // CustomCSCPicker(
+                  //   key: const PageStorageKey('location_picker'),
+                  //   onCountryChanged: (value) {
+                  //     setState(() {
+                  //       countryValue = value;
+                  //     });
+                  //     _saveDraftDebounced();
+                  //   },
+                  //   onStateChanged: (value) {
+                  //     setState(() {
+                  //       stateValue = value;
+                  //     });
+                  //     _saveDraftDebounced();
+                  //   },
+                  //   onCityChanged: (value) {
+                  //     setState(() {
+                  //       cityValue = value;
+                  //     });
+                  //     _saveDraftDebounced();
+                  //   },
+                  // ),
+                  //
+                  // // ===== Nearby Riyadh Metro (REFACTORED) =====
+                  // RiyadhMetroPicker(
+                  //   key: _keyMetro,
+                  //   controller: _metroCtrl,
+                  //   isVisible:
+                  //       (cityValue ?? '').toLowerCase().trim() == 'riyadh',
+                  // ),
 
                   // Hotel rooms
                   Visibility(
@@ -2149,47 +2164,47 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                         }
 
                         // Build Metro payload intent (only if Riyadh)
-                        final bool isRiyadh =
-                            (cityValue ?? '').toLowerCase().trim() == 'riyadh';
-                        List<String> selectedLines =
-                            _metroCtrl.chosenLines; // EN
-                        Map<String, List<String>> selectedStations =
-                            _metroCtrl.chosenStationsByLine; // EN
-
-                        if (isRiyadh &&
-                            selectedLines.isNotEmpty &&
-                            _hasPartialMetroSelection()) {
-                          final proceed = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text("Metro selection incomplete"),
-                              content: Text(
-                                "${getTranslated(context, "You selected at least one metro line but did not choose any station on it.")}\n\n"
-                                "${getTranslated(context, "Do you want to continue without saving any Metro info?")}",
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.of(ctx).pop(false),
-                                  child: Text(getTranslated(
-                                      context, 'Choose stations')),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () => Navigator.of(ctx).pop(true),
-                                  child:
-                                      Text(getTranslated(context, 'Continue')),
-                                ),
-                              ],
-                            ),
-                          );
-
-                          if (proceed != true) {
-                            _scrollTo(_keyMetro);
-                            return;
-                          } else {
-                            selectedLines = const [];
-                            selectedStations = const {};
-                          }
-                        }
+                        // final bool isRiyadh =
+                        //     (cityValue ?? '').toLowerCase().trim() == 'riyadh';
+                        // List<String> selectedLines =
+                        //     _metroCtrl.chosenLines; // EN
+                        // Map<String, List<String>> selectedStations =
+                        //     _metroCtrl.chosenStationsByLine; // EN
+                        //
+                        // if (isRiyadh &&
+                        //     selectedLines.isNotEmpty &&
+                        //     _hasPartialMetroSelection()) {
+                        //   final proceed = await showDialog<bool>(
+                        //     context: context,
+                        //     builder: (ctx) => AlertDialog(
+                        //       title: const Text("Metro selection incomplete"),
+                        //       content: Text(
+                        //         "${getTranslated(context, "You selected at least one metro line but did not choose any station on it.")}\n\n"
+                        //         "${getTranslated(context, "Do you want to continue without saving any Metro info?")}",
+                        //       ),
+                        //       actions: [
+                        //         TextButton(
+                        //           onPressed: () => Navigator.of(ctx).pop(false),
+                        //           child: Text(getTranslated(
+                        //               context, 'Choose stations')),
+                        //         ),
+                        //         ElevatedButton(
+                        //           onPressed: () => Navigator.of(ctx).pop(true),
+                        //           child:
+                        //               Text(getTranslated(context, 'Continue')),
+                        //         ),
+                        //       ],
+                        //     ),
+                        //   );
+                        //
+                        //   if (proceed != true) {
+                        //     _scrollTo(_keyMetro);
+                        //     return;
+                        //   } else {
+                        //     selectedLines = const [];
+                        //     selectedStations = const {};
+                        //   }
+                        // }
 
                         // --- BLOCKING LOADER (kept up until *everything* is done) ---
                         showCustomLoadingDialog(
@@ -2313,13 +2328,13 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             idEstate: idEstate.toString(),
                             nameAr: nameController.text,
                             nameEn: enNameController.text,
-                            branchEn: enBranchController.text,
-                            branchAr: arBranchController.text,
+                            branchEn: "", // will be filled in MapsScreen
+                            branchAr: "", // will be filled in MapsScreen
                             bioAr: bioController.text,
                             bioEn: enBioController.text,
-                            country: countryValue ?? "",
-                            city: cityValue ?? "",
-                            state: stateValue ?? "",
+                            country: "",
+                            city: "",
+                            state: "",
                             userType: widget.userType,
                             userID: userID,
                             typeAccount: typeAccount ?? "",
@@ -2370,10 +2385,10 @@ class _AddEstatesScreenState extends State<AddEstatesScreen> {
                             dinnerLoungePrice:
                                 dinnerPrice.isNotEmpty ? dinnerPrice : "0",
                             layoutId: _layoutId,
-                            metroCity: isRiyadh ? 'Riyadh' : '',
-                            metroLines: isRiyadh ? selectedLines : const [],
-                            metroStationsByLine:
-                                isRiyadh ? selectedStations : const {},
+                            // metroCity: isRiyadh ? 'Riyadh' : '',
+                            // metroLines: isRiyadh ? selectedLines : const [],
+                            // metroStationsByLine:
+                            //     isRiyadh ? selectedStations : const {},
                           );
 
                           // Add rooms (await each)

@@ -236,27 +236,27 @@ class AddEstateServices {
     String? timeOfPhotography,
 
     // ===== NEW (Metro) =====
-    required String metroCity, // "Riyadh" or empty
-    required List<String> metroLines, // selected line color names
-    required Map<String, List<String>> metroStationsByLine, // line -> stations
+    // required String metroCity, // "Riyadh" or empty
+    // required List<String> metroLines, // selected line color names
+    // required Map<String, List<String>> metroStationsByLine, // line -> stations
   }) async {
     String registrationDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
     // Metro payload
-    Map<String, dynamic>? metroNode;
-    if (metroCity.trim().toLowerCase() == 'riyadh' && metroLines.isNotEmpty) {
-      final Map<String, dynamic> linesNode = {};
-      for (final line in metroLines) {
-        final stations = metroStationsByLine[line] ?? const <String>[];
-        linesNode[line] = {
-          'Stations': stations.join(','), // stored as comma-separated EN names
-        };
-      }
-      metroNode = {
-        'City': 'Riyadh',
-        'Lines': linesNode,
-      };
-    }
+    // Map<String, dynamic>? metroNode;
+    // if (metroCity.trim().toLowerCase() == 'riyadh' && metroLines.isNotEmpty) {
+    //   final Map<String, dynamic> linesNode = {};
+    //   for (final line in metroLines) {
+    //     final stations = metroStationsByLine[line] ?? const <String>[];
+    //     linesNode[line] = {
+    //       'Stations': stations.join(','), // stored as comma-separated EN names
+    //     };
+    //   }
+    //   metroNode = {
+    //     'City': 'Riyadh',
+    //     'Lines': linesNode,
+    //   };
+    // }
 
     final Map<String, dynamic> base = {
       "NameAr": nameAr,
@@ -322,9 +322,9 @@ class AddEstateServices {
       };
     }
 
-    if (metroNode != null) {
-      base["Metro"] = metroNode;
-    }
+    // if (metroNode != null) {
+    //   base["Metro"] = metroNode;
+    // }
 
     await ref.child(childType).child(idEstate).set(base);
   }

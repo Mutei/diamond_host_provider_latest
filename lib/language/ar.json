@@ -746,7 +746,10 @@
   "This OTP has expired. Please request a new code.": "انتهت صلاحية رمز التحقق. يرجى طلب رمز جديد.",
   "Network issue detected. Please check your internet connection and try again.": "تم اكتشاف مشكلة في الشبكة. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.",
   "We couldn't complete verification due to a temporary issue. Please try again.": "تعذر إكمال عملية التحقق بسبب مشكلة مؤقتة. يرجى المحاولة مرة أخرى.",
-  "Paste or type the 6-digit code": "الصق أو اكتب الرمز المكوّن من 6 أرقام"
+  "Paste or type the 6-digit code": "الصق أو اكتب الرمز المكوّن من 6 أرقام",
+  "Location": "الموقع",
+  "You will set the estate location on the map in the next step.": "ستقوم بتحديد موقع المنشأة على الخريطة في الخطوة التالية.",
+  "My Location": "موقعي"
 
 
 

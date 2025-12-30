@@ -13,9 +13,9 @@ class EditProfileScreen extends StatefulWidget {
   final String firstName;
   final String email;
   final String phone;
-  final String country;
-  final String city;
-  final String secondName;
+  // final String country;
+  // final String city;
+  // final String secondName;
   final String lastName;
 
   const EditProfileScreen({
@@ -23,10 +23,10 @@ class EditProfileScreen extends StatefulWidget {
     required this.firstName,
     required this.email,
     required this.phone,
-    required this.country,
-    required this.city,
+    // required this.country,
+    // required this.city,
     required this.lastName,
-    required this.secondName,
+    // required this.secondName,
   });
 
   @override
@@ -35,20 +35,20 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _firstNameController;
-  late TextEditingController _secondNameController;
+  // late TextEditingController _secondNameController;
   late TextEditingController _lastNameController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
-  late TextEditingController _countryController;
-  late TextEditingController _cityController;
+  // late TextEditingController _countryController;
+  // late TextEditingController _cityController;
 
   late String firstName;
-  late String secondName;
+  // late String secondName;
   late String lastName;
   late String email;
   late String phoneNumber;
-  late String country;
-  late String city;
+  // late String country;
+  // late String city;
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   bool _isChanged = false;
@@ -57,53 +57,54 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
     _firstNameController = TextEditingController(text: widget.firstName);
-    _secondNameController = TextEditingController(text: widget.secondName);
+    // _secondNameController = TextEditingController(text: widget.secondName);
     _lastNameController = TextEditingController(text: widget.lastName);
     _emailController = TextEditingController(text: widget.email);
     _phoneController = TextEditingController(text: widget.phone);
-    _countryController = TextEditingController(text: widget.country);
-    _cityController = TextEditingController(text: widget.city);
+    // _countryController = TextEditingController(text: widget.country);
+    // _cityController = TextEditingController(text: widget.city);
 
     firstName = widget.firstName;
-    secondName = widget.secondName;
+    // secondName = widget.secondName;
     lastName = widget.lastName;
     email = widget.email;
     phoneNumber = widget.phone;
-    country = widget.country;
-    city = widget.city;
+    // country = widget.country;
+    // city = widget.city;
 
     [
       _firstNameController,
-      _secondNameController,
+      // _secondNameController,
       _lastNameController,
       _emailController,
       _phoneController,
-      _countryController,
-      _cityController,
+      // _countryController,
+      // _cityController,
     ].forEach((c) => c.addListener(_onTextChanged));
   }
 
   @override
   void dispose() {
     _firstNameController.dispose();
-    _secondNameController.dispose();
+    // _secondNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _countryController.dispose();
-    _cityController.dispose();
+    // _countryController.dispose();
+    // _cityController.dispose();
     super.dispose();
   }
 
   void _onTextChanged() {
     setState(() {
       _isChanged = _firstNameController.text != widget.firstName ||
-          _secondNameController.text != widget.secondName ||
+          // _secondNameController.text != widget.secondName ||
           _lastNameController.text != widget.lastName ||
           _emailController.text != widget.email ||
-          _phoneController.text != widget.phone ||
-          _countryController.text != widget.country ||
-          _cityController.text != widget.city;
+          _phoneController.text != widget.phone;
+      // ||
+      // _countryController.text != widget.country ||
+      // _cityController.text != widget.city;
     });
   }
 
@@ -277,12 +278,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         .child(userId);
     await userRef.update({
       'FirstName': _firstNameController.text.trim(),
-      'SecondName': _secondNameController.text.trim(),
+      // 'SecondName': _secondNameController.text.trim(),
       'LastName': _lastNameController.text.trim(),
       'Email': _emailController.text.trim(),
       'PhoneNumber': _phoneController.text.trim(),
-      'Country': _countryController.text.trim(),
-      'City': _cityController.text.trim(),
+      // 'Country': _countryController.text.trim(),
+      // 'City': _cityController.text.trim(),
     });
   }
 
@@ -329,14 +330,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ? getTranslated(context, "First name must not be empty")
                     : null,
               ),
-              EditScreenTextFormField(
-                controller: _secondNameController,
-                labelText: getTranslated(context, "Second Name"),
-                onChanged: (v) => secondName = v,
-                validator: (v) => v!.isEmpty
-                    ? getTranslated(context, "Second name must not be empty")
-                    : null,
-              ),
+              // EditScreenTextFormField(
+              //   controller: _secondNameController,
+              //   labelText: getTranslated(context, "Second Name"),
+              //   onChanged: (v) => secondName = v,
+              //   validator: (v) => v!.isEmpty
+              //       ? getTranslated(context, "Second name must not be empty")
+              //       : null,
+              // ),
               EditScreenTextFormField(
                 controller: _lastNameController,
                 labelText: getTranslated(context, "Last Name"),

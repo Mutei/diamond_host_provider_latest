@@ -52,36 +52,34 @@ class PersonalInfoScreen extends StatefulWidget {
 class _PersonalInfoScreenState extends State<PersonalInfoScreen>
     with RestorationMixin {
   final TextEditingController _firstNameController = TextEditingController();
-  final TextEditingController _secondNameController = TextEditingController();
+  // final TextEditingController _secondNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _bodController = TextEditingController();
   final TextEditingController _allergiesController = TextEditingController();
-  String countryValue = '';
-  String? stateValue = "";
-  String? cityValue = "";
+  // String countryValue = '';
+  // String? stateValue = "";
+  // String? cityValue = "";
   bool validateSpecialDate = false;
   String? get restorationId => widget.restorationId;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  String _selectedGender = '';
-  String _isSmoker = '';
 
   @override
   void initState() {
     super.initState();
     // Pre-fill controllers with existing data
     _firstNameController.text = widget.firstName ?? '';
-    _secondNameController.text = widget.secondName ?? '';
+    // _secondNameController.text = widget.secondName ?? '';
     _lastNameController.text = widget.lastName ?? '';
     // _bodController.text = widget.dateOfBirth ?? '';
-    cityValue = widget.city ?? '';
-    countryValue = widget.country ?? '';
-    stateValue = widget.state ?? '';
+    // cityValue = widget.city ?? '';
+    // countryValue = widget.country ?? '';
+    // stateValue = widget.state ?? '';
   }
 
   @override
   void dispose() {
     _firstNameController.dispose();
-    _secondNameController.dispose();
+    // _secondNameController.dispose();
     _lastNameController.dispose();
     _bodController.dispose();
     _allergiesController.dispose();
@@ -97,11 +95,13 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
 
   void _saveUserInfo() async {
     if (_firstNameController.text.isEmpty ||
-        _secondNameController.text.isEmpty ||
-        _lastNameController.text.isEmpty ||
-        countryValue.isEmpty ||
-        stateValue!.isEmpty ||
-        cityValue!.isEmpty) {
+            // _secondNameController.text.isEmpty ||
+            _lastNameController.text.isEmpty
+        // ||
+        // countryValue.isEmpty ||
+        // stateValue!.isEmpty ||
+        // cityValue!.isEmpty
+        ) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all fields')),
       );
@@ -146,15 +146,15 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
     final Map<String, dynamic> updatedUserData = {
       if (_firstNameController.text != (existingData['FirstName'] ?? ''))
         'FirstName': _firstNameController.text.trim(),
-      if (_secondNameController.text != (existingData['SecondName'] ?? ''))
-        'SecondName': _secondNameController.text.trim(),
+      // if (_secondNameController.text != (existingData['SecondName'] ?? ''))
+      //   'SecondName': _secondNameController.text.trim(),
       if (_lastNameController.text != (existingData['LastName'] ?? ''))
         'LastName': _lastNameController.text.trim(),
 
-      if (cityValue != (existingData['City'] ?? '')) 'City': cityValue,
-      if (stateValue != (existingData['State'] ?? '')) 'State': stateValue,
-      if (countryValue != (existingData['Country'] ?? ''))
-        'Country': countryValue,
+      // if (cityValue != (existingData['City'] ?? '')) 'City': cityValue,
+      // if (stateValue != (existingData['State'] ?? '')) 'State': stateValue,
+      // if (countryValue != (existingData['Country'] ?? ''))
+      //   'Country': countryValue,
 
       // keep required fields
       'Email': widget.email.trim().toLowerCase(),
@@ -280,12 +280,12 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
                 decoration: InputDecoration(
                     labelText: getTranslated(context, 'First Name')),
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _secondNameController,
-                decoration: InputDecoration(
-                    labelText: getTranslated(context, 'Second Name')),
-              ),
+              // const SizedBox(height: 10),
+              // TextField(
+              //   controller: _secondNameController,
+              //   decoration: InputDecoration(
+              //       labelText: getTranslated(context, 'Second Name')),
+              // ),
               const SizedBox(height: 10),
               TextField(
                 controller: _lastNameController,
@@ -310,24 +310,24 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
               //     _restorableBODDatePickerRouteFuture.present();
               //   },
               // ),
-              CustomCSCPicker(
-                key: const PageStorageKey('location_picker'),
-                onCountryChanged: (value) {
-                  setState(() {
-                    countryValue = value;
-                  });
-                },
-                onStateChanged: (value) {
-                  setState(() {
-                    stateValue = value;
-                  });
-                },
-                onCityChanged: (value) {
-                  setState(() {
-                    cityValue = value;
-                  });
-                },
-              ),
+              // CustomCSCPicker(
+              //   key: const PageStorageKey('location_picker'),
+              //   onCountryChanged: (value) {
+              //     setState(() {
+              //       countryValue = value;
+              //     });
+              //   },
+              //   onStateChanged: (value) {
+              //     setState(() {
+              //       stateValue = value;
+              //     });
+              //   },
+              //   onCityChanged: (value) {
+              //     setState(() {
+              //       cityValue = value;
+              //     });
+              //   },
+              // ),
               CustomButton(
                 text: getTranslated(context, 'Save'),
                 onPressed: _saveUserInfo,

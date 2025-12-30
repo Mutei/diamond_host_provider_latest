@@ -417,7 +417,7 @@ class AuthenticationMethods {
           await showDialog(
             context: context,
             builder: (_) => FailureDialog(
-              text: 'Verification failed',
+              text: "Verification failed.",
               text1: dialogMessage,
             ),
           );

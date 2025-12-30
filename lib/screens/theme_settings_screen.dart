@@ -864,15 +864,21 @@ class SettingsScreen extends StatelessWidget {
             final phone = phoneCtrl.text.trim();
             await auth.verifyPhoneNumber(
               phoneNumber: phone,
+              // verificationCompleted: (PhoneAuthCredential cred) async {
+              //   try {
+              //     await auth.currentUser?.reauthenticateWithCredential(cred);
+              //     if (Navigator.of(dialogCtx).canPop()) {
+              //       Navigator.of(dialogCtx).pop();
+              //     }
+              //     await _showDeletionProgress(parentContext);
+              //   } catch (_) {}
+              // },
               verificationCompleted: (PhoneAuthCredential cred) async {
-                try {
-                  await auth.currentUser?.reauthenticateWithCredential(cred);
-                  if (Navigator.of(dialogCtx).canPop()) {
-                    Navigator.of(dialogCtx).pop();
-                  }
-                  await _showDeletionProgress(parentContext);
-                } catch (_) {}
+                // ❌ DO NOTHING HERE
+                // We disable automatic verification & deletion.
+                // User must enter OTP manually.
               },
+
               verificationFailed: (FirebaseAuthException e) {
                 ScaffoldMessenger.of(parentContext).showSnackBar(
                   SnackBar(content: Text(e.message ?? "Verification failed.")),
@@ -962,11 +968,11 @@ class SettingsScreen extends StatelessWidget {
         }
 
         // IMPORTANT: we call sendCode immediately so the user sees the loader right away
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!isSending && !codeSent) {
-            sendCode();
-          }
-        });
+        // WidgetsBinding.instance.addPostFrameCallback((_) {
+        //   if (!isSending && !codeSent) {
+        //     sendCode();
+        //   }
+        // });
 
         return StatefulBuilder(
           builder: (context, setState) {

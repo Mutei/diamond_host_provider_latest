@@ -10,14 +10,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../backend/firebase_services.dart';
 import '../widgets/bottom_navigation_bar.dart';
 import 'all_posts_screen.dart';
 import 'main_screen_content.dart';
-import '../state_management/general_provider.dart';
 import 'login_screen.dart';
 
 enum _DeviceScopeType { none, all, estate }
@@ -386,23 +384,25 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
         bool isFirstNameMissing = dataUser['FirstName'] == null ||
             dataUser['FirstName'].toString().isEmpty;
-        bool isSecondNameMissing = dataUser['SecondName'] == null ||
-            dataUser['SecondName'].toString().isEmpty;
+        // bool isSecondNameMissing = dataUser['SecondName'] == null ||
+        //     dataUser['SecondName'].toString().isEmpty;
         bool isLastNameMissing = dataUser['LastName'] == null ||
             dataUser['LastName'].toString().isEmpty;
-        bool isCityMissing =
-            dataUser['City'] == null || dataUser['City'].toString().isEmpty;
-        bool isCountryMissing = dataUser['Country'] == null ||
-            dataUser['Country'].toString().isEmpty;
-        bool isStateMissing =
-            dataUser['State'] == null || dataUser['State'].toString().isEmpty;
+        // bool isCityMissing =
+        //     dataUser['City'] == null || dataUser['City'].toString().isEmpty;
+        // bool isCountryMissing = dataUser['Country'] == null ||
+        //     dataUser['Country'].toString().isEmpty;
+        // bool isStateMissing =
+        //     dataUser['State'] == null || dataUser['State'].toString().isEmpty;
 
         if (isFirstNameMissing ||
-            isSecondNameMissing ||
-            isLastNameMissing ||
-            isCityMissing ||
-            isStateMissing ||
-            isCountryMissing) {
+                // isSecondNameMissing ||
+                isLastNameMissing
+            // ||
+            // isCityMissing ||
+            // isStateMissing ||
+            // isCountryMissing
+            ) {
           setState(() => isPersonalInfoMissing = true);
 
           if (!mounted) return;
