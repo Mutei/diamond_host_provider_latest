@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../backend/firebase_services.dart';
+import '../backend/user_location_service.dart';
 import '../widgets/bottom_navigation_bar.dart';
 import 'all_posts_screen.dart';
 import 'main_screen_content.dart';
@@ -61,8 +62,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     _initializeDisabledListener();
 
     // First-frame check (app just opened)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       _maybeShowNewRequestsDialog();
+      await UserLocationService.saveUserCityCountryOnce();
     });
   }
 
